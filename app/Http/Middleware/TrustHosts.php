@@ -17,8 +17,9 @@ class TrustHosts extends Middleware
             return [null];
         }
 
-        return [
+        return array_values(array_filter([
             $this->allSubdomainsOfApplicationUrl(),
-        ];
+            '^(.+\.)?escm\.mg$',
+        ]));
     }
 }
