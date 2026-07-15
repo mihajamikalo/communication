@@ -32,14 +32,34 @@ return new class extends Migration
             }
         }
 
-        Schema::table('editorial_events', function (Blueprint $table) {
-            if (Schema::hasColumn('editorial_events', 'notes')) {
-                $table->dropColumn('notes');
-            }
-            if (Schema::hasColumn('editorial_events', 'canal')) {
-                $table->dropColumn('canal');
-            }
-        });
+        // Le DROP COLUMN natif n'est supporté qu'à partir de SQLite 3.35.
+        // Sur un SQLite plus ancien sans doctrine/dbal, on laisse simplement
+        // les colonnes obsolètes (nullable, inutilisées) pour éviter un crash.
+        if ($this->canDropColumns()) {
+            Schema::table('editorial_events', function (Blueprint $table) {
+                if (Schema::hasColumn('editorial_events', 'notes')) {
+                    $table->dropColumn('notes');
+                }
+                if (Schema::hasColumn('editorial_events', 'canal')) {
+                    $table->dropColumn('canal');
+                }
+            });
+        }
+    }
+
+    private function canDropColumns(): bool
+    {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            return true;
+        }
+
+        if (class_exists('Doctrine\DBAL\Connection')) {
+            return true;
+        }
+
+        $version = DB::selectOne('select sqlite_version() as v')->v ?? '0';
+
+        return version_compare($version, '3.35.0', '>=');
     }
 
     public function down(): void
