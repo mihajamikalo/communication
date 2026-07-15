@@ -11,20 +11,20 @@ define('LARAVEL_START', microtime(true));
 |--------------------------------------------------------------------------
 |
 | L'application est servie depuis https://.../communication via une
-| réécriture Apache. On retire ce préfixe de l'URI pour que le routeur
-| Laravel voie "/login" et non "/communication/login". En local (sans
-| préfixe), ce bloc est ignoré.
+| réécriture Apache. On indique à Laravel que le front controller se
+| trouve dans "/communication" (sans toucher à REQUEST_URI) : le routeur
+| voit alors "/login" tout en conservant "/communication" dans les URLs
+| générées (liens, redirections, "intended"). En local (sans préfixe),
+| ce bloc est ignoré.
 |
 */
 
 $basePath = '/communication';
-$requestUri = $_SERVER['REQUEST_URI'] ?? '';
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
 
-if ($requestUri === $basePath || str_starts_with($requestUri, $basePath.'/')) {
-    $trimmed = substr($requestUri, strlen($basePath));
-    $_SERVER['REQUEST_URI'] = $trimmed === '' ? '/' : $trimmed;
-    $_SERVER['SCRIPT_NAME'] = '/index.php';
-    $_SERVER['PHP_SELF'] = '/index.php';
+if ($requestPath === $basePath || str_starts_with($requestPath, $basePath.'/')) {
+    $_SERVER['SCRIPT_NAME'] = $basePath.'/index.php';
+    $_SERVER['PHP_SELF'] = $basePath.'/index.php';
 }
 
 /*
