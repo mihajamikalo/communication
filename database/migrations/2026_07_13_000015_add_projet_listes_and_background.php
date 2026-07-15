@@ -75,14 +75,17 @@ return new class extends Migration
                 }
             }
 
-            // SQLite: recreate table to drop statut + old index cleanly
             Schema::table('projet_cartes', function (Blueprint $table) {
                 $table->dropIndex(['statut', 'position']);
             });
 
-            Schema::table('projet_cartes', function (Blueprint $table) {
-                $table->dropColumn('statut');
-            });
+            // DROP COLUMN natif indisponible sur SQLite < 3.35 sans doctrine/dbal :
+            // on laisse la colonne "statut" (default 'a_faire', inutilisée) au lieu de crasher.
+            if ($this->canDropColumns()) {
+                Schema::table('projet_cartes', function (Blueprint $table) {
+                    $table->dropColumn('statut');
+                });
+            }
         }
 
         $indexes = collect(DB::select("PRAGMA index_list('projet_cartes')"))->pluck('name');
@@ -116,5 +119,20 @@ return new class extends Migration
 
         Schema::dropIfExists('projet_listes');
         Schema::dropIfExists('projet_tableaux');
+    }
+
+    private function canDropColumns(): bool
+    {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            return true;
+        }
+
+        if (class_exists('Doctrine\DBAL\Connection')) {
+            return true;
+        }
+
+        $version = DB::selectOne('select sqlite_version() as v')->v ?? '0';
+
+        return version_compare($version, '3.35.0', '>=');
     }
 };

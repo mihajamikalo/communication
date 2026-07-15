@@ -22,7 +22,15 @@ define('LARAVEL_START', microtime(true));
 $basePath = '/communication';
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
 
-if ($requestPath === $basePath || str_starts_with($requestPath, $basePath.'/')) {
+// Normaliser "/communication" -> "/communication/" pour que la détection du
+// base path fonctionne (sans slash final, Laravel générerait des URLs sans préfixe).
+if ($requestPath === $basePath) {
+    $query = $_SERVER['QUERY_STRING'] ?? '';
+    $_SERVER['REQUEST_URI'] = $basePath.'/'.($query !== '' ? '?'.$query : '');
+    $requestPath = $basePath.'/';
+}
+
+if (str_starts_with($requestPath, $basePath.'/')) {
     $_SERVER['SCRIPT_NAME'] = $basePath.'/index.php';
     $_SERVER['PHP_SELF'] = $basePath.'/index.php';
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EditorialEvent;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class CalendrierEditorialController extends Controller
@@ -71,6 +72,33 @@ class CalendrierEditorialController extends Controller
 
         return $this->redirectToCalendar($request)
             ->with('success', 'Contenu ajouté au calendrier.');
+    }
+
+    public function update(Request $request, EditorialEvent $editorialEvent)
+    {
+        $validated = $this->validateEvent($request);
+
+        if ($request->hasFile('visuel')) {
+            if ($editorialEvent->visuel_path) {
+                Storage::disk('public')->delete($editorialEvent->visuel_path);
+            }
+
+            $file = $request->file('visuel');
+            $validated['visuel_path'] = $file->store('editorial-visuels', 'public');
+            $validated['visuel_nom'] = $file->getClientOriginalName();
+        } elseif ($request->boolean('remove_visuel')) {
+            if ($editorialEvent->visuel_path) {
+                Storage::disk('public')->delete($editorialEvent->visuel_path);
+            }
+
+            $validated['visuel_path'] = null;
+            $validated['visuel_nom'] = null;
+        }
+
+        $editorialEvent->update($validated);
+
+        return $this->redirectToCalendar($request)
+            ->with('success', 'Contenu mis à jour.');
     }
 
     public function destroy(Request $request, EditorialEvent $editorialEvent)
@@ -158,6 +186,7 @@ class CalendrierEditorialController extends Controller
             'texte_publication' => $event->texte_publication,
             'visuel_url' => $event->visuel_url,
             'visuel_nom' => $event->visuel_nom,
+            'update_url' => route('calendrier-editorial.update', $event),
             'delete_url' => route('calendrier-editorial.destroy', $event),
         ];
     }

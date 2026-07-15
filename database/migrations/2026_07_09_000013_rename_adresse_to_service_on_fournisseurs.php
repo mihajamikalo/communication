@@ -20,10 +20,29 @@ return new class extends Migration
                     ->update(['service' => $row->adresse]);
             }
 
-            Schema::table('fournisseurs', function (Blueprint $table) {
-                $table->dropColumn('adresse');
-            });
+            // DROP COLUMN natif indisponible sur SQLite < 3.35 sans doctrine/dbal :
+            // on laisse la colonne obsolète (nullable, inutilisée) au lieu de crasher.
+            if ($this->canDropColumns()) {
+                Schema::table('fournisseurs', function (Blueprint $table) {
+                    $table->dropColumn('adresse');
+                });
+            }
         }
+    }
+
+    private function canDropColumns(): bool
+    {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            return true;
+        }
+
+        if (class_exists('Doctrine\DBAL\Connection')) {
+            return true;
+        }
+
+        $version = DB::selectOne('select sqlite_version() as v')->v ?? '0';
+
+        return version_compare($version, '3.35.0', '>=');
     }
 
     public function down(): void

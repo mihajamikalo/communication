@@ -24,10 +24,6 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        if ($root = config('app.url')) {
-            URL::forceRootUrl($root);
-        }
-
         View::composer('layouts.partials.header', function ($view) {
             if (! auth()->check()) {
                 $view->with('nbAlertes', 0);

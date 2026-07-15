@@ -22,7 +22,9 @@
         'baseUrl' => route('calendrier-editorial'),
         'storeUrl' => route('calendrier-editorial.store'),
         'today' => now()->toDateString(),
-        'openCreate' => $errors->any(),
+        'openCreate' => $errors->any() && old('form_mode') !== 'edit',
+        'openEdit' => $errors->any() && old('form_mode') === 'edit',
+        'editEventId' => old('event_id'),
         'old' => [
             'titre' => old('titre', ''),
             'categorie' => old('categorie', 'facebook'),
@@ -318,12 +320,21 @@
                                     <img :src="selectedEvent.visuel_url" :alt="selectedEvent.visuel_nom || 'Visuel'" class="max-h-40 rounded-lg border border-slate-200 object-cover">
                                 </a>
                                 <p class="text-xs text-slate-500 mt-1" x-text="selectedEvent.visuel_nom"></p>
+                                <a :href="selectedEvent.visuel_url" :download="selectedEvent.visuel_nom || 'visuel'"
+                                   class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-escm-primary hover:underline">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    Télécharger le visuel
+                                </a>
                             </dd>
                         </div>
                     </dl>
                     <div class="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
                         <button type="button" @click="selectedEvent = null" class="px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">
                             Fermer
+                        </button>
+                        <button type="button" @click="startEdit(selectedEvent)" class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-escm-primary hover:bg-escm-primary-dark rounded-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            Modifier
                         </button>
                         <form :action="selectedEvent.delete_url" method="POST" @submit="return confirm('Supprimer ce contenu du calendrier ?')">
                             @csrf
@@ -471,6 +482,148 @@
             </form>
         </div>
     </div>
+
+    {{-- Edit modal --}}
+    <div
+        x-show="showEdit"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        @keydown.escape.window="if (showEdit) showEdit = false"
+    >
+        <div class="absolute inset-0 bg-black/40" @click="showEdit = false"></div>
+        <div class="relative bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg p-5 max-h-[90vh] overflow-y-auto" x-show="showEdit" x-transition>
+            <div class="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Modifier le contenu</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Mettre à jour l'élément du calendrier éditorial</p>
+                </div>
+                <button type="button" @click="showEdit = false" class="p-1 rounded hover:bg-slate-100 text-slate-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            @if ($errors->any())
+                <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700" x-show="editErrors">
+                    <ul class="list-disc list-inside space-y-0.5">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form method="POST" :action="editingEvent ? editingEvent.update_url : ''" enctype="multipart/form-data" class="space-y-3">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="form_mode" value="edit">
+                <input type="hidden" name="event_id" :value="editingEvent ? editingEvent.id : ''">
+                <input type="hidden" name="return_date" :value="currentDate">
+                <input type="hidden" name="return_view" :value="view">
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Titre</label>
+                    <input type="text" name="titre" x-model="editForm.titre" required maxlength="255"
+                           class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Catégorie</label>
+                    <select name="categorie" x-model="editForm.categorie" @change="onEditCategoryOrTypeChange()" required
+                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat['key'] }}">{{ $cat['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div x-show="editForm.categorie" x-cloak>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Type de contenu</label>
+                    <div class="flex items-center gap-4">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="radio" name="type_contenu" value="FI" x-model="editForm.type_contenu" @change="onEditCategoryOrTypeChange()" class="text-escm-primary focus:ring-escm-primary border-slate-300">
+                            <span class="font-semibold">FI</span>
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="radio" name="type_contenu" value="FP" x-model="editForm.type_contenu" @change="onEditCategoryOrTypeChange()" class="text-escm-primary focus:ring-escm-primary border-slate-300">
+                            <span class="font-semibold">FP</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div x-show="isEditFacebookFi" x-cloak class="rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+                    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                        <input type="checkbox" name="booster" value="1" x-model="editForm.booster" class="rounded border-slate-300 text-escm-primary focus:ring-escm-primary">
+                        Booster
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" x-text="editForm.booster && isEditFacebookFi ? 'Date de début' : 'Date de publication'"></label>
+                        <input type="date" name="date_debut" x-model="editForm.date_debut" required
+                               class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                    </div>
+                    <div x-show="isEditFacebookFi && editForm.booster" x-cloak>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Date de fin</label>
+                        <input type="date" name="date_fin" x-model="editForm.date_fin" :required="isEditFacebookFi && editForm.booster"
+                               class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Statut</label>
+                    <select name="statut" x-model="editForm.statut" required
+                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                        @foreach($statuts as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                        Texte publication <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="texte_publication" x-model="editForm.texte_publication" rows="3" maxlength="5000" required
+                              class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Visuel</label>
+                    <div x-show="editingEvent && editingEvent.visuel_url && !editForm.remove_visuel" x-cloak class="mb-2">
+                        <img :src="editingEvent ? editingEvent.visuel_url : ''" class="max-h-32 rounded-lg border border-slate-200 object-cover">
+                        <div class="flex items-center gap-3 mt-1">
+                            <a :href="editingEvent ? editingEvent.visuel_url : ''" :download="editingEvent ? (editingEvent.visuel_nom || 'visuel') : ''" class="text-xs font-semibold text-escm-primary hover:underline">Télécharger</a>
+                            <label class="inline-flex items-center gap-1.5 text-xs text-red-600 cursor-pointer">
+                                <input type="checkbox" name="remove_visuel" value="1" x-model="editForm.remove_visuel" class="rounded border-slate-300 text-red-600 focus:ring-red-500">
+                                Supprimer le visuel
+                            </label>
+                        </div>
+                    </div>
+                    <input type="file" name="visuel" accept="image/jpeg,image/png,image/webp,image/gif"
+                           class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-escm-primary file:text-white hover:file:bg-escm-primary-dark">
+                    <p class="mt-1 text-xs text-slate-500" x-text="editingEvent && editingEvent.visuel_url ? 'Choisir un fichier pour remplacer le visuel actuel — JPG, PNG, WEBP ou GIF, max 5 Mo' : 'JPG, PNG, WEBP ou GIF — max 5 Mo'"></p>
+                </div>
+
+                @if($canValidate)
+                <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                    <input type="checkbox" name="valide" value="1" x-model="editForm.valide" class="rounded border-slate-300 text-escm-primary focus:ring-escm-primary">
+                    Validé
+                </label>
+                @endif
+
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button type="button" @click="showEdit = false" class="px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">
+                        Annuler
+                    </button>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-escm-primary hover:bg-escm-primary-dark rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Enregistrer les modifications
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -529,6 +682,9 @@ function editorialCalendar(config) {
         categoryFilter: '',
         selectedEvent: null,
         showCreate: !!config.openCreate,
+        showEdit: false,
+        editingEvent: null,
+        editErrors: !!config.openEdit,
         form: {
             titre: config.old.titre || '',
             categorie: config.old.categorie || 'facebook',
@@ -539,6 +695,18 @@ function editorialCalendar(config) {
             statut: config.old.statut || 'planifie',
             valide: !!config.old.valide,
             texte_publication: config.old.texte_publication || '',
+        },
+        editForm: {
+            titre: '',
+            categorie: 'facebook',
+            type_contenu: 'FI',
+            booster: false,
+            date_debut: config.currentDate,
+            date_fin: '',
+            statut: 'planifie',
+            valide: false,
+            texte_publication: '',
+            remove_visuel: false,
         },
         miniMonth: parseDate(config.currentDate).getMonth(),
         miniYear: parseDate(config.currentDate).getFullYear(),
@@ -553,6 +721,32 @@ function editorialCalendar(config) {
 
         get isFacebookFi() {
             return this.form.categorie === 'facebook' && this.form.type_contenu === 'FI';
+        },
+
+        get isEditFacebookFi() {
+            return this.editForm.categorie === 'facebook' && this.editForm.type_contenu === 'FI';
+        },
+
+        init() {
+            if (config.openEdit && config.editEventId) {
+                const ev = this.events.find(e => String(e.id) === String(config.editEventId));
+                if (ev) {
+                    this.editingEvent = ev;
+                }
+                this.editForm = {
+                    titre: config.old.titre || '',
+                    categorie: config.old.categorie || 'facebook',
+                    type_contenu: config.old.type_contenu || 'FI',
+                    booster: !!config.old.booster,
+                    date_debut: config.old.date_debut || this.currentDate,
+                    date_fin: config.old.date_fin || '',
+                    statut: config.old.statut || 'planifie',
+                    valide: !!config.old.valide,
+                    texte_publication: config.old.texte_publication || '',
+                    remove_visuel: false,
+                };
+                this.showEdit = true;
+            }
         },
 
         get allVisible() {
@@ -690,6 +884,34 @@ function editorialCalendar(config) {
             if (!(this.form.categorie === 'facebook' && this.form.type_contenu === 'FI')) {
                 this.form.booster = false;
                 this.form.date_fin = '';
+            }
+        },
+
+        startEdit(ev) {
+            if (!ev) return;
+            this.editingEvent = ev;
+            this.editErrors = false;
+            this.editForm = {
+                titre: ev.titre || '',
+                categorie: ev.categorie || 'facebook',
+                type_contenu: ev.type_contenu || 'FI',
+                booster: !!ev.booster,
+                date_debut: ev.date_debut || this.currentDate,
+                date_fin: (ev.date_fin && ev.date_fin !== ev.date_debut) ? ev.date_fin : '',
+                statut: ev.statut || 'planifie',
+                valide: !!ev.valide,
+                texte_publication: ev.texte_publication || '',
+                remove_visuel: false,
+            };
+            this.selectedEvent = null;
+            this.showCreate = false;
+            this.showEdit = true;
+        },
+
+        onEditCategoryOrTypeChange() {
+            if (!(this.editForm.categorie === 'facebook' && this.editForm.type_contenu === 'FI')) {
+                this.editForm.booster = false;
+                this.editForm.date_fin = '';
             }
         },
 
