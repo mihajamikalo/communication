@@ -16,7 +16,9 @@ use App\Http\Controllers\StockMouvementController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/dashboard');
+Route::get('/', function () {
+    return redirect()->route('dashboard');
+});
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -54,7 +56,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/cartes/{projet}/pieces-jointes', [ProjetController::class, 'storePieceJointe'])->name('cartes.pieces');
         Route::delete('/pieces-jointes/{piece}', [ProjetController::class, 'destroyPieceJointe'])->name('pieces.destroy');
     });
-    Route::redirect('/validation-achats', '/gestion-projet');
+    Route::get('/validation-achats', function () {
+        return redirect()->route('gestion-projet.index');
+    });
 
     Route::resource('evenements', EvenementController::class)->except(['show']);
     Route::get('/calendrier-editorial', [CalendrierEditorialController::class, 'index'])->name('calendrier-editorial');

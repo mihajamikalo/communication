@@ -20,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
         Carbon::setLocale('fr');
         setlocale(LC_TIME, 'fr_FR.UTF-8', 'fr_FR', 'French');
 
+        if ($root = config('app.url')) {
+            URL::forceRootUrl(rtrim($root, '/'));
+        }
+
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
