@@ -84,7 +84,39 @@ class DepenseController extends Controller
             'statut' => ['required', Rule::in($allowedStatuts)],
             'categorie' => ['required', Rule::in(array_keys(Depense::CATEGORIES))],
             'date_depense' => ['required', 'date'],
+            'mode_paiement' => ['nullable', Rule::in(array_keys(Depense::MODES_PAIEMENT))],
+            'reste_a_payer' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'mode_paiement.in' => 'Choisissez Acompte ou Totalité.',
+            'reste_a_payer.min' => 'Le reste à payer doit être positif ou nul.',
         ]);
+
+        if ($validated['statut'] === 'paye') {
+            if (empty($validated['mode_paiement'])) {
+                throw ValidationException::withMessages([
+                    'mode_paiement' => 'Sélectionnez Acompte ou Totalité lorsque le statut est Payé.',
+                ]);
+            }
+
+            if ($validated['mode_paiement'] === 'acompte') {
+                if ($validated['reste_a_payer'] === null || $validated['reste_a_payer'] === '') {
+                    throw ValidationException::withMessages([
+                        'reste_a_payer' => 'Indiquez le reste à payer pour un acompte.',
+                    ]);
+                }
+
+                if ((float) $validated['reste_a_payer'] > (float) $validated['montant']) {
+                    throw ValidationException::withMessages([
+                        'reste_a_payer' => 'Le reste à payer ne peut pas dépasser le montant total.',
+                    ]);
+                }
+            } else {
+                $validated['reste_a_payer'] = null;
+            }
+        } else {
+            $validated['mode_paiement'] = null;
+            $validated['reste_a_payer'] = null;
+        }
 
         if (
             $validated['statut'] === Depense::STATUT_APPROUVE

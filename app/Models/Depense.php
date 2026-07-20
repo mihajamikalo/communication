@@ -33,23 +33,40 @@ class Depense extends Model
         'goodies_evenements' => 'Goodies / Événements',
     ];
 
+    public const MODES_PAIEMENT = [
+        'acompte' => 'Acompte',
+        'totalite' => 'Totalité',
+    ];
+
     protected $fillable = [
         'fournisseur',
         'objet',
         'campagne',
         'montant',
         'statut',
+        'mode_paiement',
+        'reste_a_payer',
         'categorie',
         'date_depense',
     ];
 
     protected $casts = [
         'montant' => 'decimal:2',
+        'reste_a_payer' => 'decimal:2',
         'date_depense' => 'date',
     ];
 
     public function getStatutLabelAttribute(): string
     {
         return self::STATUTS[$this->statut] ?? $this->statut;
+    }
+
+    public function getModePaiementLabelAttribute(): ?string
+    {
+        if (! $this->mode_paiement) {
+            return null;
+        }
+
+        return self::MODES_PAIEMENT[$this->mode_paiement] ?? $this->mode_paiement;
     }
 }
