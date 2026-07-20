@@ -35,6 +35,7 @@
             'statut' => old('statut', 'planifie'),
             'valide' => (bool) old('valide', false),
             'texte_publication' => old('texte_publication', ''),
+            'texte_publication_linkedin' => old('texte_publication_linkedin', ''),
         ],
     ]))"
 >
@@ -325,6 +326,10 @@
                             <dt class="text-slate-500 w-28 shrink-0">Texte publication</dt>
                             <dd class="text-slate-800 whitespace-pre-wrap" x-text="selectedEvent.texte_publication"></dd>
                         </div>
+                        <div class="flex gap-2" x-show="selectedEvent.texte_publication_linkedin">
+                            <dt class="text-slate-500 w-28 shrink-0">Texte publication LinkedIn</dt>
+                            <dd class="text-slate-800 whitespace-pre-wrap" x-text="selectedEvent.texte_publication_linkedin"></dd>
+                        </div>
                         <div class="flex gap-2" x-show="selectedEvent.visuel_url">
                             <dt class="text-slate-500 w-28 shrink-0">Visuel</dt>
                             <dd>
@@ -479,6 +484,16 @@
                               placeholder="Texte de la publication…"></textarea>
                 </div>
 
+                <div x-show="hasFormLinkedIn" x-cloak>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                        Texte publication LinkedIn <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="texte_publication_linkedin" x-model="form.texte_publication_linkedin" rows="3" maxlength="5000"
+                              :required="hasFormLinkedIn"
+                              class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm"
+                              placeholder="Texte spécifique pour LinkedIn…"></textarea>
+                </div>
+
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Visuel</label>
                     <input type="file" name="visuel" accept="image/jpeg,image/png,image/webp,image/gif"
@@ -622,6 +637,16 @@
                               class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm"></textarea>
                 </div>
 
+                <div x-show="hasEditLinkedIn" x-cloak>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                        Texte publication LinkedIn <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="texte_publication_linkedin" x-model="editForm.texte_publication_linkedin" rows="3" maxlength="5000"
+                              :required="hasEditLinkedIn"
+                              class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm"
+                              placeholder="Texte spécifique pour LinkedIn…"></textarea>
+                </div>
+
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Visuel</label>
                     <div x-show="editingEvent && editingEvent.visuel_url && !editForm.remove_visuel" x-cloak class="mb-2">
@@ -729,6 +754,7 @@ function editorialCalendar(config) {
             statut: config.old.statut || 'planifie',
             valide: !!config.old.valide,
             texte_publication: config.old.texte_publication || '',
+            texte_publication_linkedin: config.old.texte_publication_linkedin || '',
         },
         editForm: {
             titre: '',
@@ -740,6 +766,7 @@ function editorialCalendar(config) {
             statut: 'planifie',
             valide: false,
             texte_publication: '',
+            texte_publication_linkedin: '',
             remove_visuel: false,
         },
         miniMonth: parseDate(config.currentDate).getMonth(),
@@ -761,6 +788,14 @@ function editorialCalendar(config) {
             return (this.editForm.categorie || []).includes('facebook') && this.editForm.type_contenu === 'FI';
         },
 
+        get hasFormLinkedIn() {
+            return (this.form.categorie || []).includes('linkedin');
+        },
+
+        get hasEditLinkedIn() {
+            return (this.editForm.categorie || []).includes('linkedin');
+        },
+
         init() {
             if (config.openEdit && config.editEventId) {
                 const ev = this.events.find(e => String(e.id) === String(config.editEventId));
@@ -780,6 +815,7 @@ function editorialCalendar(config) {
                     statut: config.old.statut || 'planifie',
                     valide: !!config.old.valide,
                     texte_publication: config.old.texte_publication || '',
+                    texte_publication_linkedin: config.old.texte_publication_linkedin || '',
                     remove_visuel: false,
                 };
                 this.showEdit = true;
@@ -916,6 +952,7 @@ function editorialCalendar(config) {
                 statut: 'planifie',
                 valide: false,
                 texte_publication: '',
+                texte_publication_linkedin: '',
             };
             this.showCreate = true;
         },
@@ -964,6 +1001,7 @@ function editorialCalendar(config) {
                 statut: ev.statut || 'planifie',
                 valide: !!ev.valide,
                 texte_publication: ev.texte_publication || '',
+                texte_publication_linkedin: ev.texte_publication_linkedin || '',
                 remove_visuel: false,
             };
             this.selectedEvent = null;

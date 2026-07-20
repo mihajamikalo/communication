@@ -18,6 +18,7 @@ class EditorialEvent extends Model
         'statut',
         'valide',
         'texte_publication',
+        'texte_publication_linkedin',
         'visuel_path',
         'visuel_nom',
     ];

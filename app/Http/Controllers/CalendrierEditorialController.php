@@ -116,6 +116,7 @@ class CalendrierEditorialController extends Controller
 
         $isFacebookFi = in_array('facebook', $categories, true)
             && $request->input('type_contenu') === 'FI';
+        $hasLinkedIn = in_array('linkedin', $categories, true);
 
         $rules = [
             'titre' => ['required', 'string', 'max:255'],
@@ -128,6 +129,7 @@ class CalendrierEditorialController extends Controller
             'statut' => ['required', Rule::in(['planifie', 'en_cours', 'publie', 'annule'])],
             'valide' => ['nullable', 'boolean'],
             'texte_publication' => ['required', 'string', 'max:5000'],
+            'texte_publication_linkedin' => [$hasLinkedIn ? 'required' : 'nullable', 'string', 'max:5000'],
             'visuel' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
         ];
 
@@ -139,6 +141,7 @@ class CalendrierEditorialController extends Controller
             'categorie.required' => 'Sélectionnez au moins une catégorie.',
             'categorie.min' => 'Sélectionnez au moins une catégorie.',
             'texte_publication.required' => 'Le texte de publication est obligatoire.',
+            'texte_publication_linkedin.required' => 'Le texte de publication LinkedIn est obligatoire.',
             'type_contenu.required' => 'Veuillez choisir FI ou FP.',
             'date_fin.required' => 'La date de fin est obligatoire lorsque Booster est activé.',
             'visuel.mimes' => 'Le visuel doit être une image (jpg, png, webp, gif).',
@@ -159,6 +162,10 @@ class CalendrierEditorialController extends Controller
 
         if (! $validated['booster']) {
             $validated['date_fin'] = $validated['date_fin'] ?? null;
+        }
+
+        if (! $hasLinkedIn) {
+            $validated['texte_publication_linkedin'] = null;
         }
 
         return $validated;
@@ -194,6 +201,7 @@ class CalendrierEditorialController extends Controller
             'statut' => $event->statut,
             'valide' => (bool) $event->valide,
             'texte_publication' => $event->texte_publication,
+            'texte_publication_linkedin' => $event->texte_publication_linkedin,
             'visuel_url' => $event->visuel_url,
             'visuel_nom' => $event->visuel_nom,
             'update_url' => route('calendrier-editorial.update', $event),
