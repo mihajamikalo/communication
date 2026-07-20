@@ -111,12 +111,16 @@ class CalendrierEditorialController extends Controller
 
     private function validateEvent(Request $request): array
     {
-        $isFacebookFi = $request->input('categorie') === 'facebook'
+        $categories = array_values(array_unique(array_filter((array) $request->input('categorie', []))));
+        $request->merge(['categorie' => $categories]);
+
+        $isFacebookFi = in_array('facebook', $categories, true)
             && $request->input('type_contenu') === 'FI';
 
         $rules = [
             'titre' => ['required', 'string', 'max:255'],
-            'categorie' => ['required', Rule::in(array_keys(EditorialEvent::CATEGORIES))],
+            'categorie' => ['required', 'array', 'min:1'],
+            'categorie.*' => ['required', Rule::in(array_keys(EditorialEvent::CATEGORIES))],
             'type_contenu' => ['required', Rule::in(array_keys(EditorialEvent::TYPES_CONTENU))],
             'booster' => ['nullable', 'boolean'],
             'date_debut' => ['required', 'date'],
@@ -132,6 +136,8 @@ class CalendrierEditorialController extends Controller
         }
 
         $validated = $request->validate($rules, [
+            'categorie.required' => 'Sélectionnez au moins une catégorie.',
+            'categorie.min' => 'Sélectionnez au moins une catégorie.',
             'texte_publication.required' => 'Le texte de publication est obligatoire.',
             'type_contenu.required' => 'Veuillez choisir FI ou FP.',
             'date_fin.required' => 'La date de fin est obligatoire lorsque Booster est activé.',
@@ -141,6 +147,7 @@ class CalendrierEditorialController extends Controller
 
         unset($validated['visuel']);
 
+        $validated['categorie'] = array_values(array_unique($validated['categorie']));
         $validated['booster'] = $isFacebookFi && $request->boolean('booster');
         $validated['valide'] = auth()->user()?->canValidateEditorial()
             ? $request->boolean('valide')
@@ -170,13 +177,16 @@ class CalendrierEditorialController extends Controller
 
     private function mapEvent(EditorialEvent $event): array
     {
+        $meta = $event->categorie_meta;
+
         return [
             'id' => $event->id,
             'titre' => $event->titre,
             'categorie' => $event->categorie,
-            'label' => $event->categorie_meta['label'],
-            'color' => $event->categorie_meta['color'],
-            'text' => $event->categorie_meta['text'],
+            'categories' => $event->categories_meta,
+            'label' => $event->categories_label,
+            'color' => $meta['color'],
+            'text' => $meta['text'],
             'type_contenu' => $event->type_contenu,
             'booster' => (bool) $event->booster,
             'date_debut' => $event->date_debut->toDateString(),

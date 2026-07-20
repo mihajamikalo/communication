@@ -27,7 +27,7 @@
         'editEventId' => old('event_id'),
         'old' => [
             'titre' => old('titre', ''),
-            'categorie' => old('categorie', 'facebook'),
+            'categorie' => array_values((array) old('categorie', ['facebook'])),
             'type_contenu' => old('type_contenu', 'FI'),
             'booster' => (bool) old('booster', false),
             'date_debut' => old('date_debut', $currentDate),
@@ -302,7 +302,19 @@
                         </button>
                     </div>
                     <dl class="space-y-2 text-sm">
-                        <div class="flex gap-2"><dt class="text-slate-500 w-28 shrink-0">Catégorie</dt><dd class="text-slate-800" x-text="selectedEvent.label"></dd></div>
+                        <div class="flex gap-2">
+                            <dt class="text-slate-500 w-28 shrink-0">Catégorie</dt>
+                            <dd class="text-slate-800">
+                                <div class="flex flex-wrap gap-1.5">
+                                    <template x-for="cat in (selectedEvent.categories || [])" :key="cat.key">
+                                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                                              :style="`background:${cat.color}`">
+                                            <span x-text="cat.label"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </dd>
+                        </div>
                         <div class="flex gap-2" x-show="selectedEvent.type_contenu"><dt class="text-slate-500 w-28 shrink-0">Type</dt><dd class="text-slate-800 font-semibold" x-text="selectedEvent.type_contenu"></dd></div>
                         <div class="flex gap-2" x-show="selectedEvent.booster"><dt class="text-slate-500 w-28 shrink-0">Booster</dt><dd class="text-slate-800">Oui</dd></div>
                         <div class="flex gap-2"><dt class="text-slate-500 w-28 shrink-0">Début</dt><dd class="text-slate-800" x-text="formatDate(selectedEvent.date_debut)"></dd></div>
@@ -394,16 +406,27 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Catégorie</label>
-                    <select name="categorie" x-model="form.categorie" @change="onCategoryOrTypeChange()" required
-                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Catégories <span class="text-red-500">*</span></label>
+                    <p class="text-xs text-slate-500 mb-2">Vous pouvez en sélectionner plusieurs.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         @foreach($categories as $cat)
-                            <option value="{{ $cat['key'] }}">{{ $cat['label'] }}</option>
+                            <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input
+                                    type="checkbox"
+                                    name="categorie[]"
+                                    value="{{ $cat['key'] }}"
+                                    :checked="form.categorie.includes('{{ $cat['key'] }}')"
+                                    @change="toggleFormCategory('{{ $cat['key'] }}')"
+                                    class="rounded border-slate-300 text-escm-primary focus:ring-escm-primary"
+                                >
+                                <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $cat['color'] }}"></span>
+                                <span>{{ $cat['label'] }}</span>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                 </div>
 
-                <div x-show="form.categorie" x-cloak>
+                <div x-show="form.categorie.length" x-cloak>
                     <label class="block text-sm font-medium text-slate-700 mb-1.5">Type de contenu</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -527,16 +550,27 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Catégorie</label>
-                    <select name="categorie" x-model="editForm.categorie" @change="onEditCategoryOrTypeChange()" required
-                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Catégories <span class="text-red-500">*</span></label>
+                    <p class="text-xs text-slate-500 mb-2">Vous pouvez en sélectionner plusieurs.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         @foreach($categories as $cat)
-                            <option value="{{ $cat['key'] }}">{{ $cat['label'] }}</option>
+                            <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input
+                                    type="checkbox"
+                                    name="categorie[]"
+                                    value="{{ $cat['key'] }}"
+                                    :checked="editForm.categorie.includes('{{ $cat['key'] }}')"
+                                    @change="toggleEditCategory('{{ $cat['key'] }}')"
+                                    class="rounded border-slate-300 text-escm-primary focus:ring-escm-primary"
+                                >
+                                <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ $cat['color'] }}"></span>
+                                <span>{{ $cat['label'] }}</span>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                 </div>
 
-                <div x-show="editForm.categorie" x-cloak>
+                <div x-show="editForm.categorie.length" x-cloak>
                     <label class="block text-sm font-medium text-slate-700 mb-1.5">Type de contenu</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -687,7 +721,7 @@ function editorialCalendar(config) {
         editErrors: !!config.openEdit,
         form: {
             titre: config.old.titre || '',
-            categorie: config.old.categorie || 'facebook',
+            categorie: Array.isArray(config.old.categorie) ? config.old.categorie : ['facebook'],
             type_contenu: config.old.type_contenu || 'FI',
             booster: !!config.old.booster,
             date_debut: config.old.date_debut || config.currentDate,
@@ -698,7 +732,7 @@ function editorialCalendar(config) {
         },
         editForm: {
             titre: '',
-            categorie: 'facebook',
+            categorie: ['facebook'],
             type_contenu: 'FI',
             booster: false,
             date_debut: config.currentDate,
@@ -720,11 +754,11 @@ function editorialCalendar(config) {
         ],
 
         get isFacebookFi() {
-            return this.form.categorie === 'facebook' && this.form.type_contenu === 'FI';
+            return (this.form.categorie || []).includes('facebook') && this.form.type_contenu === 'FI';
         },
 
         get isEditFacebookFi() {
-            return this.editForm.categorie === 'facebook' && this.editForm.type_contenu === 'FI';
+            return (this.editForm.categorie || []).includes('facebook') && this.editForm.type_contenu === 'FI';
         },
 
         init() {
@@ -733,9 +767,12 @@ function editorialCalendar(config) {
                 if (ev) {
                     this.editingEvent = ev;
                 }
+                const oldCats = Array.isArray(config.old.categorie)
+                    ? config.old.categorie
+                    : (config.old.categorie ? [config.old.categorie] : ['facebook']);
                 this.editForm = {
                     titre: config.old.titre || '',
-                    categorie: config.old.categorie || 'facebook',
+                    categorie: oldCats,
                     type_contenu: config.old.type_contenu || 'FI',
                     booster: !!config.old.booster,
                     date_debut: config.old.date_debut || this.currentDate,
@@ -762,7 +799,10 @@ function editorialCalendar(config) {
         },
 
         get visibleEvents() {
-            return this.events.filter(e => this.visibleCategories[e.categorie]);
+            return this.events.filter(e => {
+                const cats = Array.isArray(e.categorie) ? e.categorie : [e.categorie];
+                return cats.some(key => this.visibleCategories[key]);
+            });
         },
 
         get daysPerRow() {
@@ -868,7 +908,7 @@ function editorialCalendar(config) {
             this.selectedEvent = null;
             this.form = {
                 titre: '',
-                categorie: 'facebook',
+                categorie: ['facebook'],
                 type_contenu: 'FI',
                 booster: false,
                 date_debut: dateStr || this.currentDate,
@@ -880,8 +920,28 @@ function editorialCalendar(config) {
             this.showCreate = true;
         },
 
+        toggleFormCategory(key) {
+            const list = this.form.categorie || [];
+            if (list.includes(key)) {
+                this.form.categorie = list.filter(k => k !== key);
+            } else {
+                this.form.categorie = [...list, key];
+            }
+            this.onCategoryOrTypeChange();
+        },
+
+        toggleEditCategory(key) {
+            const list = this.editForm.categorie || [];
+            if (list.includes(key)) {
+                this.editForm.categorie = list.filter(k => k !== key);
+            } else {
+                this.editForm.categorie = [...list, key];
+            }
+            this.onEditCategoryOrTypeChange();
+        },
+
         onCategoryOrTypeChange() {
-            if (!(this.form.categorie === 'facebook' && this.form.type_contenu === 'FI')) {
+            if (!((this.form.categorie || []).includes('facebook') && this.form.type_contenu === 'FI')) {
                 this.form.booster = false;
                 this.form.date_fin = '';
             }
@@ -891,9 +951,12 @@ function editorialCalendar(config) {
             if (!ev) return;
             this.editingEvent = ev;
             this.editErrors = false;
+            const cats = Array.isArray(ev.categorie)
+                ? ev.categorie
+                : (ev.categorie ? [ev.categorie] : ['facebook']);
             this.editForm = {
                 titre: ev.titre || '',
-                categorie: ev.categorie || 'facebook',
+                categorie: [...cats],
                 type_contenu: ev.type_contenu || 'FI',
                 booster: !!ev.booster,
                 date_debut: ev.date_debut || this.currentDate,
@@ -909,7 +972,7 @@ function editorialCalendar(config) {
         },
 
         onEditCategoryOrTypeChange() {
-            if (!(this.editForm.categorie === 'facebook' && this.editForm.type_contenu === 'FI')) {
+            if (!((this.editForm.categorie || []).includes('facebook') && this.editForm.type_contenu === 'FI')) {
                 this.editForm.booster = false;
                 this.editForm.date_fin = '';
             }

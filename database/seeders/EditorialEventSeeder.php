@@ -16,7 +16,7 @@ class EditorialEventSeeder extends Seeder
         $editorialEvents = [
             [
                 'titre' => 'Post Facebook MBA — Témoignage alumni',
-                'categorie' => 'facebook',
+                'categorie' => ['facebook'],
                 'type_contenu' => 'FI',
                 'booster' => true,
                 'date_debut' => '2026-07-06',
@@ -27,7 +27,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'Story Instagram Portes Ouvertes',
-                'categorie' => 'instagram',
+                'categorie' => ['instagram'],
                 'type_contenu' => 'FI',
                 'booster' => false,
                 'date_debut' => '2026-07-08',
@@ -37,7 +37,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'Carrousel LinkedIn Bachelor Digital',
-                'categorie' => 'linkedin',
+                'categorie' => ['linkedin'],
                 'type_contenu' => 'FP',
                 'booster' => false,
                 'date_debut' => '2026-07-07',
@@ -47,7 +47,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'TikTok — Vie étudiante campus',
-                'categorie' => 'tiktok',
+                'categorie' => ['tiktok'],
                 'type_contenu' => 'FI',
                 'booster' => false,
                 'date_debut' => '2026-07-11',
@@ -57,7 +57,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'SMS Befiana — Relance Portes Ouvertes',
-                'categorie' => 'befiana_sms',
+                'categorie' => ['befiana_sms'],
                 'type_contenu' => 'FP',
                 'booster' => false,
                 'date_debut' => '2026-07-14',
@@ -67,7 +67,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'Newsletter Brevo — Actualités juillet',
-                'categorie' => 'brevo',
+                'categorie' => ['brevo'],
                 'type_contenu' => 'FP',
                 'booster' => false,
                 'date_debut' => '2026-07-09',
@@ -77,7 +77,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'Facebook Ads — Boost Master Finance',
-                'categorie' => 'facebook',
+                'categorie' => ['facebook'],
                 'type_contenu' => 'FI',
                 'booster' => true,
                 'date_debut' => '2026-07-10',
@@ -88,7 +88,7 @@ class EditorialEventSeeder extends Seeder
             ],
             [
                 'titre' => 'Instagram Reel Master Finance',
-                'categorie' => 'instagram',
+                'categorie' => ['instagram'],
                 'type_contenu' => 'FI',
                 'booster' => false,
                 'date_debut' => '2026-07-16',

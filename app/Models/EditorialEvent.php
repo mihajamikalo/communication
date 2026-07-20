@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
@@ -35,6 +36,7 @@ class EditorialEvent extends Model
         'tiktok' => ['label' => 'Tik Tok', 'color_name' => 'Noir', 'color' => '#111827', 'text' => '#ffffff'],
         'befiana_sms' => ['label' => 'Befiana SMS', 'color_name' => 'Vert', 'color' => '#16a34a', 'text' => '#ffffff'],
         'brevo' => ['label' => 'Brevo', 'color_name' => 'Violet', 'color' => '#7c3aed', 'text' => '#ffffff'],
+        'article_site_web' => ['label' => 'Article site web', 'color_name' => 'Cyan', 'color' => '#0891b2', 'text' => '#ffffff'],
     ];
 
     public const TYPES_CONTENU = [
@@ -42,18 +44,59 @@ class EditorialEvent extends Model
         'FP' => 'FP',
     ];
 
+    protected function categorie(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if (is_array($value)) {
+                    return array_values($value);
+                }
+
+                $decoded = json_decode((string) $value, true);
+                if (is_array($decoded)) {
+                    return array_values($decoded);
+                }
+
+                return $value ? [(string) $value] : [];
+            },
+            set: function ($value) {
+                $list = is_array($value) ? $value : [$value];
+                $list = array_values(array_unique(array_filter($list)));
+
+                return json_encode($list);
+            },
+        );
+    }
+
+    public function getCategoriesMetaAttribute(): array
+    {
+        return collect($this->categorie)
+            ->map(fn ($key) => array_merge(
+                ['key' => $key],
+                self::CATEGORIES[$key] ?? ['label' => $key, 'color' => '#94a3b8', 'text' => '#ffffff']
+            ))
+            ->values()
+            ->all();
+    }
+
     public function getCategorieMetaAttribute(): array
     {
-        return self::CATEGORIES[$this->categorie] ?? [
-            'label' => $this->categorie,
+        return $this->categories_meta[0] ?? [
+            'key' => null,
+            'label' => '—',
             'color' => '#94a3b8',
             'text' => '#ffffff',
         ];
     }
 
+    public function getCategoriesLabelAttribute(): string
+    {
+        return collect($this->categories_meta)->pluck('label')->implode(', ');
+    }
+
     public function getIsFacebookFiAttribute(): bool
     {
-        return $this->categorie === 'facebook' && $this->type_contenu === 'FI';
+        return in_array('facebook', $this->categorie ?? [], true) && $this->type_contenu === 'FI';
     }
 
     public function getVisuelUrlAttribute(): ?string
