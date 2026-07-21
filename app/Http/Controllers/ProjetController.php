@@ -31,7 +31,7 @@ class ProjetController extends Controller
 
         $listes = $tableau->listes;
         $etiquettes = ProjetEtiquette::orderBy('nom')->get();
-        $users = User::orderBy('name')->get(['id', 'name', 'email']);
+        $users = User::orderBy('name')->get(['id', 'name', 'email', 'avatar_path']);
 
         return view('projets.index', [
             'title' => 'Gestion de projet',
@@ -192,6 +192,7 @@ class ProjetController extends Controller
                 'id' => $u->id,
                 'name' => $u->name,
                 'initials' => $u->initials(),
+                'avatar_url' => $u->avatar_url,
             ]),
             'checklists' => $projet->checklists->map(fn ($c) => [
                 'id' => $c->id,
@@ -207,6 +208,7 @@ class ProjetController extends Controller
                 'contenu' => $c->contenu,
                 'user' => $c->user?->name,
                 'initials' => $c->user?->initials(),
+                'avatar_url' => $c->user?->avatar_url,
                 'date' => $c->created_at->locale('fr')->isoFormat('D MMM YYYY, HH:mm'),
             ]),
             'pieces_jointes' => $projet->piecesJointes->map(fn ($p) => [
@@ -370,6 +372,7 @@ class ProjetController extends Controller
                 'contenu' => $commentaire->contenu,
                 'user' => $request->user()->name,
                 'initials' => $request->user()->initials(),
+                'avatar_url' => $request->user()->avatar_url,
                 'date' => $commentaire->created_at->locale('fr')->isoFormat('D MMM YYYY, HH:mm'),
             ],
         ]);

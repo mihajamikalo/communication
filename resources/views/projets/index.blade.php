@@ -142,9 +142,7 @@
                                 @if($carte->membres->isNotEmpty())
                                     <div class="mt-2.5 flex -space-x-1.5 justify-end">
                                         @foreach($carte->membres->take(4) as $membre)
-                                            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-escm-primary text-[10px] font-bold text-white ring-2 ring-white" title="{{ $membre->name }}">
-                                                {{ $membre->initials() }}
-                                            </span>
+                                            <x-user-avatar :user="$membre" size="xs" :ring="true" />
                                         @endforeach
                                     </div>
                                 @endif
@@ -268,7 +266,7 @@
                                             <input type="checkbox" value="{{ $user->id }}"
                                                    :checked="card.membres.some(m => m.id === {{ $user->id }})"
                                                    @change="toggleMember({{ $user->id }})">
-                                            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-escm-primary text-[10px] font-bold text-white">{{ $user->initials() }}</span>
+                                            <x-user-avatar :user="$user" size="xs" />
                                             {{ $user->name }}
                                         </label>
                                     @endforeach
@@ -302,7 +300,10 @@
                                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Membres</p>
                                     <div class="flex flex-wrap gap-1.5">
                                         <template x-for="m in card.membres" :key="m.id">
-                                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-escm-primary text-xs font-bold text-white" :title="m.name" x-text="m.initials"></span>
+                                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-escm-primary text-xs font-bold text-white overflow-hidden shrink-0" :title="m.name">
+                                                <template x-if="m.avatar_url"><img :src="m.avatar_url" :alt="m.name" class="h-full w-full object-cover"></template>
+                                                <span x-show="!m.avatar_url" x-text="m.initials"></span>
+                                            </span>
                                         </template>
                                         <span x-show="!card.membres.length" class="text-sm text-slate-400">Aucun</span>
                                     </div>
@@ -387,7 +388,10 @@
                             <div class="space-y-4 max-h-[28rem] overflow-y-auto pr-1">
                                 <template x-for="c in card.commentaires" :key="'c'+c.id">
                                     <div class="flex gap-2.5">
-                                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-escm-primary text-[10px] font-bold text-white" x-text="c.initials"></span>
+                                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-escm-primary text-[10px] font-bold text-white overflow-hidden">
+                                            <template x-if="c.avatar_url"><img :src="c.avatar_url" :alt="c.user" class="h-full w-full object-cover"></template>
+                                            <span x-show="!c.avatar_url" x-text="c.initials"></span>
+                                        </span>
                                         <div class="min-w-0">
                                             <p class="text-xs text-slate-500"><span class="font-semibold text-slate-800" x-text="c.user"></span> · <span x-text="c.date"></span></p>
                                             <div class="mt-1 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap" x-text="c.contenu"></div>
