@@ -6,32 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Models\Budget;
 use App\Models\BudgetAnnuel;
 use App\Models\Campagne;
-use App\Models\Depense;
 use App\Services\AlerteService;
+use App\Services\BudgetMensuelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class DashboardApiController extends Controller
 {
-    public function __invoke(Request $request, AlerteService $alerteService)
+    public function __invoke(Request $request, AlerteService $alerteService, BudgetMensuelService $budgetMensuel)
     {
         $annee = (int) $request->get('annee', now()->year);
         $mois = (int) $request->get('mois', now()->month);
 
-        $budgetMensuel = Budget::where('annee', $annee)->where('mois', $mois)->first();
-        $budgetMontant = $budgetMensuel ? (float) $budgetMensuel->montant : 0;
+        $snap = $budgetMensuel->forMonth($annee, $mois);
 
         $budgetAnnuel = BudgetAnnuel::where('annee', $annee)->first();
         $budgetAnnuelMontant = $budgetAnnuel ? (float) $budgetAnnuel->montant : 0;
         $budgetAnnuelAlloue = (float) Budget::where('annee', $annee)->sum('montant');
-
-        $depensesMois = Depense::whereYear('date_depense', $annee)
-            ->whereMonth('date_depense', $mois)
-            ->get();
-
-        $totalDepense = (float) $depensesMois->sum('montant');
-        $resteDisponible = max(0, $budgetMontant - $totalDepense);
-        $pctUtilise = $budgetMontant > 0 ? round(($totalDepense / $budgetMontant) * 100) : 0;
 
         $alertes = $alerteService->all($annee, $mois);
 
@@ -44,11 +35,15 @@ class DashboardApiController extends Controller
             'kpis' => [
                 'budget_annuel' => $budgetAnnuelMontant,
                 'budget_annuel_alloue' => $budgetAnnuelAlloue,
-                'budget_mensuel' => $budgetMontant,
-                'depense' => $totalDepense,
-                'reste' => $resteDisponible,
-                'pct_utilise' => $pctUtilise,
-                'nb_operations' => $depensesMois->count(),
+                'budget_mensuel' => $snap['budget_base'],
+                'budget_effectif' => $snap['budget_effectif'],
+                'report_precedent' => $snap['report_precedent'],
+                'depense' => $snap['depense'],
+                'reste' => $snap['reste'],
+                'depassement' => $snap['depassement'],
+                'is_depassement' => $snap['is_depassement'],
+                'pct_utilise' => $snap['pct_utilise'],
+                'nb_operations' => \App\Models\Depense::whereYear('date_depense', $annee)->whereMonth('date_depense', $mois)->count(),
                 'nb_campagnes' => Campagne::where('statut', 'active')->count(),
                 'nb_alertes' => count($alertes),
             ],

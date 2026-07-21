@@ -57,7 +57,10 @@
     <input type="number" name="cout" value="{{ old('cout', $evenement?->cout ?? 0) }}" required min="0" step="1"
            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-escm-primary focus:ring-escm-primary text-sm">
     @error('cout')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-    <p class="mt-1.5 text-xs text-slate-500">Ce montant sera automatiquement déduit du budget mensuel correspondant à la date de début.</p>
+    <p class="mt-1.5 text-xs text-slate-500">
+        Ce montant sera déduit du budget mensuel de la date de début.
+        Un dépassement reste autorisé : le surplus est automatiquement reporté sur le budget du mois suivant.
+    </p>
 </div>
 
 <div>

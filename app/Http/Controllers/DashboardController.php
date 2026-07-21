@@ -2,28 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Budget;
 use App\Models\BudgetAnnuel;
 use App\Models\Campagne;
 use App\Models\Depense;
 use App\Models\Stock;
 use App\Services\AlerteService;
+use App\Services\BudgetMensuelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request, AlerteService $alerteService)
+    public function index(Request $request, AlerteService $alerteService, BudgetMensuelService $budgetMensuel)
     {
         $annee = (int) $request->get('annee', now()->year);
         $mois = (int) $request->get('mois', now()->month);
 
-        $budgetMensuel = Budget::where('annee', $annee)->where('mois', $mois)->first();
-        $budgetMontant = $budgetMensuel ? (float) $budgetMensuel->montant : 0;
+        $snap = $budgetMensuel->forMonth($annee, $mois);
 
         $budgetAnnuel = BudgetAnnuel::where('annee', $annee)->first();
         $budgetAnnuelMontant = $budgetAnnuel ? (float) $budgetAnnuel->montant : 0;
-        $budgetAnnuelAlloue = (float) Budget::where('annee', $annee)->sum('montant');
+        $budgetAnnuelAlloue = (float) \App\Models\Budget::where('annee', $annee)->sum('montant');
         $budgetAnnuelRestant = max(0, $budgetAnnuelMontant - $budgetAnnuelAlloue);
         $pctAnnuelAlloue = $budgetAnnuelMontant > 0
             ? (int) min(100, round(($budgetAnnuelAlloue / $budgetAnnuelMontant) * 100))
@@ -33,13 +32,17 @@ class DashboardController extends Controller
             ->whereMonth('date_depense', $mois)
             ->get();
 
-        $totalDepense = (float) $depensesMois->sum('montant');
-        $resteDisponible = max(0, $budgetMontant - $totalDepense);
+        $totalDepense = $snap['depense'];
+        $resteDisponible = $snap['reste'];
         $sponsoringTotal = (float) $depensesMois->where('categorie', 'sponsoring_reseaux')->sum('montant');
 
-        $pctUtilise = $budgetMontant > 0 ? round(($totalDepense / $budgetMontant) * 100) : 0;
-        $pctRestant = $budgetMontant > 0 ? round(($resteDisponible / $budgetMontant) * 100) : 0;
-        $pctSponsoring = $budgetMontant > 0 ? round(($sponsoringTotal / $budgetMontant) * 100) : 0;
+        $pctUtilise = $snap['pct_utilise'];
+        $pctRestant = $snap['budget_effectif'] > 0
+            ? (int) round(($resteDisponible / $snap['budget_effectif']) * 100)
+            : ($resteDisponible < 0 ? 0 : 0);
+        $pctSponsoring = $snap['budget_effectif'] > 0
+            ? (int) round(($sponsoringTotal / $snap['budget_effectif']) * 100)
+            : 0;
 
         $nbOperations = $depensesMois->count();
         $nbCampagnesActives = Campagne::where('statut', 'active')->count();
@@ -49,7 +52,9 @@ class DashboardController extends Controller
             'budget_annuel_alloue' => $budgetAnnuelAlloue,
             'budget_annuel_restant' => $budgetAnnuelRestant,
             'pct_annuel_alloue' => $pctAnnuelAlloue,
-            'budget_mensuel' => $budgetMontant,
+            'budget_mensuel' => $snap['budget_base'],
+            'budget_effectif' => $snap['budget_effectif'],
+            'report_precedent' => $snap['report_precedent'],
             'depense' => $totalDepense,
             'reste' => $resteDisponible,
             'sponsoring' => $sponsoringTotal,
@@ -58,9 +63,11 @@ class DashboardController extends Controller
             'pct_sponsoring' => $pctSponsoring,
             'nb_operations' => $nbOperations,
             'nb_campagnes' => $nbCampagnesActives,
+            'is_depassement' => $snap['is_depassement'],
+            'depassement' => $snap['depassement'],
         ];
 
-        $chartEvolution = $this->buildEvolutionChart($annee);
+        $chartEvolution = $this->buildEvolutionChart($annee, $budgetMensuel);
         $chartRepartition = $this->buildRepartitionChart($depensesMois, $totalDepense);
 
         $depensesRecentes = Depense::orderByDesc('date_depense')->limit(5)->get();
@@ -85,7 +92,7 @@ class DashboardController extends Controller
         ));
     }
 
-    private function buildEvolutionChart(int $annee): array
+    private function buildEvolutionChart(int $annee, BudgetMensuelService $budgetMensuel): array
     {
         $moisLabels = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
         $budgetPrevu = [];
@@ -93,13 +100,10 @@ class DashboardController extends Controller
         $reste = [];
 
         for ($m = 1; $m <= 12; $m++) {
-            $budget = Budget::where('annee', $annee)->where('mois', $m)->first();
-            $budgetVal = $budget ? (float) $budget->montant : 0;
-            $depVal = (float) Depense::whereYear('date_depense', $annee)->whereMonth('date_depense', $m)->sum('montant');
-
-            $budgetPrevu[] = $budgetVal;
-            $depenses[] = $depVal;
-            $reste[] = max(0, $budgetVal - $depVal);
+            $snap = $budgetMensuel->forMonth($annee, $m);
+            $budgetPrevu[] = $snap['budget_effectif'];
+            $depenses[] = $snap['depense'];
+            $reste[] = $snap['reste'];
         }
 
         return [

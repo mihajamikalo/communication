@@ -16,11 +16,9 @@ class AlerteService
         $annee = $annee ?? now()->year;
         $mois = $mois ?? now()->month;
 
-        $budgetMensuel = Budget::where('annee', $annee)->where('mois', $mois)->first();
-        $budgetMontant = $budgetMensuel ? (float) $budgetMensuel->montant : 0;
-        $totalDepense = (float) Depense::whereYear('date_depense', $annee)
-            ->whereMonth('date_depense', $mois)
-            ->sum('montant');
+        $snap = app(BudgetMensuelService::class)->forMonth($annee, $mois);
+        $budgetMontant = $snap['budget_effectif'];
+        $totalDepense = $snap['depense'];
 
         $budgetAnnuel = BudgetAnnuel::where('annee', $annee)->first();
         $budgetAnnuelMontant = $budgetAnnuel ? (float) $budgetAnnuel->montant : 0;
@@ -29,18 +27,17 @@ class AlerteService
         $alertes = [];
         $moisLabel = Carbon::create($annee, $mois, 1)->locale('fr')->isoFormat('MMMM YYYY');
 
-        if ($budgetMontant > 0 && $totalDepense > $budgetMontant) {
-            $depassement = $totalDepense - $budgetMontant;
-            $pct = round(($totalDepense / $budgetMontant) * 100);
+        if ($snap['is_depassement']) {
+            $pct = $snap['pct_utilise'];
             $alertes[] = [
                 'type' => 'danger',
                 'titre' => 'Dépassement budget mensuel',
-                'description' => ucfirst($moisLabel).' : '.format_ar($totalDepense).' dépensés sur '.format_ar($budgetMontant).' (+'.format_ar($depassement).', '.$pct.'%).',
+                'description' => ucfirst($moisLabel).' : '.format_ar($totalDepense).' dépensés sur '.format_ar($budgetMontant).' effectifs ('.format_ar($snap['depassement']).' reportés au mois suivant, '.$pct.'%).',
                 'temps' => 'Maintenant',
                 'url' => route('depenses.index'),
             ];
         } elseif ($budgetMontant > 0 && $totalDepense >= $budgetMontant * 0.9) {
-            $reste = max(0, $budgetMontant - $totalDepense);
+            $reste = max(0, $snap['reste']);
             $alertes[] = [
                 'type' => 'warning',
                 'titre' => 'Budget mensuel presque épuisé',

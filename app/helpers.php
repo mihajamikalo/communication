@@ -3,7 +3,9 @@
 if (! function_exists('format_ar')) {
     function format_ar(float|int $amount): string
     {
-        return number_format($amount, 0, ',', ' ') . ' Ar';
+        $formatted = number_format(abs((float) $amount), 0, ',', ' ');
+
+        return ((float) $amount < 0 ? '- ' : '').$formatted.' Ar';
     }
 }
 

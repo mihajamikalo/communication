@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Budget;
 use App\Models\Depense;
 use App\Models\Evenement;
+use App\Services\BudgetMensuelService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class EvenementController extends Controller
 {
@@ -34,11 +33,6 @@ class EvenementController extends Controller
     {
         $validated = $this->validateEvenement($request);
 
-        $this->assertMonthlyBudgetAvailable(
-            Carbon::parse($validated['date_debut']),
-            (float) $validated['cout']
-        );
-
         DB::transaction(function () use ($validated) {
             $depense = null;
 
@@ -52,8 +46,14 @@ class EvenementController extends Controller
             ]);
         });
 
-        return redirect()->route('evenements.index')
-            ->with('success', 'Événement créé. Le coût a été déduit du budget mensuel.');
+        $date = Carbon::parse($validated['date_debut']);
+        $message = 'Événement créé. Le coût a été déduit du budget mensuel.';
+        $snap = app(BudgetMensuelService::class)->forMonth($date->year, $date->month);
+        if ($snap['is_depassement']) {
+            $message .= ' Attention : dépassement de '.format_ar($snap['depassement']).' reporté sur le mois suivant.';
+        }
+
+        return redirect()->route('evenements.index')->with('success', $message);
     }
 
     public function edit(Evenement $evenement)
@@ -68,12 +68,6 @@ class EvenementController extends Controller
     public function update(Request $request, Evenement $evenement)
     {
         $validated = $this->validateEvenement($request);
-
-        $this->assertMonthlyBudgetAvailable(
-            Carbon::parse($validated['date_debut']),
-            (float) $validated['cout'],
-            $evenement->depense_id
-        );
 
         DB::transaction(function () use ($validated, $evenement) {
             if ((float) $validated['cout'] > 0) {
@@ -93,8 +87,14 @@ class EvenementController extends Controller
             $evenement->update($validated);
         });
 
-        return redirect()->route('evenements.index')
-            ->with('success', 'Événement mis à jour. Le budget mensuel a été ajusté.');
+        $date = Carbon::parse($validated['date_debut']);
+        $message = 'Événement mis à jour. Le budget mensuel a été ajusté.';
+        $snap = app(BudgetMensuelService::class)->forMonth($date->year, $date->month);
+        if ($snap['is_depassement']) {
+            $message .= ' Attention : dépassement de '.format_ar($snap['depassement']).' reporté sur le mois suivant.';
+        }
+
+        return redirect()->route('evenements.index')->with('success', $message);
     }
 
     public function destroy(Evenement $evenement)
@@ -134,38 +134,5 @@ class EvenementController extends Controller
             'categorie' => 'goodies_evenements',
             'date_depense' => $validated['date_debut'],
         ];
-    }
-
-    private function assertMonthlyBudgetAvailable(Carbon $date, float $cout, ?int $ignoreDepenseId = null): void
-    {
-        if ($cout <= 0) {
-            return;
-        }
-
-        $annee = $date->year;
-        $mois = $date->month;
-
-        $budget = Budget::where('annee', $annee)->where('mois', $mois)->first();
-        $budgetMontant = $budget ? (float) $budget->montant : 0;
-
-        if ($budgetMontant <= 0) {
-            throw ValidationException::withMessages([
-                'cout' => 'Aucun budget mensuel défini pour '.$date->locale('fr')->isoFormat('MMMM YYYY').'.',
-            ]);
-        }
-
-        $query = Depense::whereYear('date_depense', $annee)->whereMonth('date_depense', $mois);
-        if ($ignoreDepenseId) {
-            $query->where('id', '!=', $ignoreDepenseId);
-        }
-
-        $dejaDepense = (float) $query->sum('montant');
-        $reste = $budgetMontant - $dejaDepense;
-
-        if ($cout > $reste + 0.009) {
-            throw ValidationException::withMessages([
-                'cout' => 'Dépasse le budget mensuel restant ('.format_ar(max(0, $reste)).' sur '.format_ar($budgetMontant).' en '.$date->locale('fr')->isoFormat('MMMM YYYY').').',
-            ]);
-        }
     }
 }

@@ -6,6 +6,7 @@
     'progress' => null,
     'progressLabel' => null,
     'progressColor' => 'blue',
+    'valueClass' => 'text-slate-900',
 ])
 
 @php
@@ -14,12 +15,14 @@
         'green' => 'bg-green-50 text-green-600',
         'purple' => 'bg-purple-50 text-purple-600',
         'orange' => 'bg-orange-50 text-orange-600',
+        'red' => 'bg-red-50 text-red-600',
     ];
     $barColors = [
         'blue' => 'bg-blue-500',
         'green' => 'bg-green-500',
         'purple' => 'bg-purple-500',
         'orange' => 'bg-orange-500',
+        'red' => 'bg-red-500',
     ];
 @endphp
 
@@ -30,14 +33,14 @@
             {{ $icon }}
         </div>
     </div>
-    <p class="text-2xl font-bold text-slate-900 mb-1">{{ $value }}</p>
+    <p class="text-2xl font-bold mb-1 {{ $valueClass }}">{{ $value }}</p>
     @if($subtext)
         <p class="text-xs text-slate-500 mb-3">{{ $subtext }}</p>
     @endif
     @if($progress !== null)
         <div class="w-full bg-slate-100 rounded-full h-1.5 mb-1">
-            <div class="h-1.5 rounded-full {{ $barColors[$progressColor] ?? $barColors['blue'] }}" style="width: {{ min(100, $progress) }}%"></div>
+            <div class="h-1.5 rounded-full {{ $barColors[$progressColor] ?? $barColors['blue'] }}" style="width: {{ min(100, max(0, $progress)) }}%"></div>
         </div>
-        <p class="text-[11px] text-slate-500">{{ $progressLabel }}</p>
+        <p class="text-[11px] {{ $progressColor === 'red' ? 'text-red-600 font-medium' : 'text-slate-500' }}">{{ $progressLabel }}</p>
     @endif
 </div>

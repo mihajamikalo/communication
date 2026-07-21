@@ -14,19 +14,45 @@
         </x-slot:icon>
     </x-kpi-card>
 
-    <x-kpi-card label="Budget mensuel" :value="format_ar($kpis['budget_mensuel'])" subtext="Budget alloué" icon-color="blue" :progress="$kpis['pct_utilise']" :progress-label="$kpis['pct_utilise'] . '% utilisé'" progress-color="blue">
+    <x-kpi-card
+        label="Budget mensuel"
+        :value="format_ar($kpis['budget_mensuel'])"
+        :subtext="$kpis['report_precedent'] > 0 ? 'Effectif : ' . format_ar($kpis['budget_effectif']) . ' (report −' . format_ar($kpis['report_precedent']) . ')' : 'Budget alloué'"
+        icon-color="blue"
+        :progress="min(100, $kpis['pct_utilise'])"
+        :progress-label="$kpis['pct_utilise'] . '% utilisé'"
+        :progress-color="$kpis['is_depassement'] ? 'red' : 'blue'"
+    >
         <x-slot:icon>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
         </x-slot:icon>
     </x-kpi-card>
 
-    <x-kpi-card label="Dépensé" :value="format_ar($kpis['depense'])" :subtext="$kpis['nb_operations'] . ' opérations'" icon-color="green" :progress="$kpis['pct_utilise']" :progress-label="$kpis['pct_utilise'] . '% du budget'" progress-color="green">
+    <x-kpi-card
+        label="Dépensé"
+        :value="format_ar($kpis['depense'])"
+        :subtext="$kpis['nb_operations'] . ' opérations'"
+        :icon-color="$kpis['is_depassement'] ? 'red' : 'green'"
+        :progress="min(100, $kpis['pct_utilise'])"
+        :progress-label="$kpis['pct_utilise'] . '% du budget'"
+        :progress-color="$kpis['is_depassement'] ? 'red' : 'green'"
+        :value-class="$kpis['is_depassement'] ? 'text-red-600' : 'text-slate-900'"
+    >
         <x-slot:icon>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         </x-slot:icon>
     </x-kpi-card>
 
-    <x-kpi-card label="Reste disponible" :value="format_ar($kpis['reste'])" subtext="Disponible ce mois" icon-color="purple" :progress="$kpis['pct_restant']" :progress-label="$kpis['pct_restant'] . '% restant'" progress-color="purple">
+    <x-kpi-card
+        label="Reste disponible"
+        :value="format_ar($kpis['reste'])"
+        :subtext="$kpis['is_depassement'] ? 'Dépassé — reporté sur le mois suivant' : 'Disponible ce mois'"
+        :icon-color="$kpis['is_depassement'] ? 'red' : 'purple'"
+        :progress="$kpis['is_depassement'] ? 100 : max(0, $kpis['pct_restant'])"
+        :progress-label="$kpis['is_depassement'] ? 'Dépassement ' . format_ar($kpis['depassement']) : $kpis['pct_restant'] . '% restant'"
+        :progress-color="$kpis['is_depassement'] ? 'red' : 'purple'"
+        :value-class="$kpis['is_depassement'] ? 'text-red-600' : 'text-slate-900'"
+    >
         <x-slot:icon>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </x-slot:icon>
