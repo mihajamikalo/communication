@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProjetActivite;
 use App\Models\ProjetCarte;
 use App\Models\ProjetChecklist;
 use App\Models\ProjetChecklistItem;
@@ -11,12 +10,17 @@ use App\Models\ProjetEtiquette;
 use App\Models\ProjetPieceJointe;
 use App\Models\ProjetTableau;
 use App\Models\User;
+use App\Services\ProjetNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ProjetController extends Controller
 {
+    public function __construct(private ProjetNotificationService $notifications)
+    {
+    }
+
     public function index()
     {
         ProjetEtiquette::ensureDefaults();
@@ -149,7 +153,12 @@ class ProjetController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        $this->log($carte, $request->user()->id, $request->user()->name.' a ajouté cette carte à '.$liste->nom);
+        $this->notifications->log(
+            $carte,
+            $request->user(),
+            $request->user()->name.' a ajouté cette carte à '.$liste->nom,
+            'Nouvelle carte'
+        );
 
         if ($request->wantsJson()) {
             return response()->json(['ok' => true, 'id' => $carte->id]);
@@ -243,7 +252,19 @@ class ProjetController extends Controller
 
         if (isset($data['projet_liste_id']) && (int) $data['projet_liste_id'] !== (int) $oldListeId) {
             $projet->load('liste');
-            $this->log($projet, $request->user()->id, $request->user()->name.' a déplacé cette carte vers '.$projet->liste->nom);
+            $this->notifications->log(
+                $projet,
+                $request->user(),
+                $request->user()->name.' a déplacé « '.$projet->titre.' » vers '.$projet->liste->nom,
+                'Carte déplacée'
+            );
+        } elseif (! empty(array_diff_key($data, array_flip(['projet_liste_id'])))) {
+            $this->notifications->log(
+                $projet,
+                $request->user(),
+                $request->user()->name.' a mis à jour « '.$projet->titre.' »',
+                'Carte mise à jour'
+            );
         }
 
         if ($request->wantsJson()) {
@@ -255,6 +276,15 @@ class ProjetController extends Controller
 
     public function destroy(Request $request, ProjetCarte $projet)
     {
+        $projet->load('membres');
+        $this->notifications->notifyMembres(
+            $projet,
+            $request->user()->id,
+            'Carte supprimée',
+            $request->user()->name.' a supprimé « '.$projet->titre.' »',
+            'warning'
+        );
+
         $projet->delete();
 
         if ($request->wantsJson()) {
@@ -285,7 +315,12 @@ class ProjetController extends Controller
         }
 
         if ((int) $oldListeId !== (int) $liste->id) {
-            $this->log($carte, $request->user()->id, $request->user()->name.' a déplacé cette carte vers '.$liste->nom);
+            $this->notifications->log(
+                $carte,
+                $request->user(),
+                $request->user()->name.' a déplacé « '.$carte->titre.' » vers '.$liste->nom,
+                'Carte déplacée'
+            );
         }
 
         return response()->json(['ok' => true]);
@@ -298,7 +333,45 @@ class ProjetController extends Controller
             'user_ids.*' => ['integer', 'exists:users,id'],
         ]);
 
-        $projet->membres()->sync($data['user_ids'] ?? []);
+        $before = $projet->membres()->allRelatedIds()->map(fn ($id) => (int) $id);
+        $after = collect($data['user_ids'] ?? [])->map(fn ($id) => (int) $id)->unique()->values();
+
+        $projet->membres()->sync($after->all());
+        $projet->load('membres');
+
+        $added = $after->diff($before)->values();
+        $removed = $before->diff($after)->values();
+        $actor = $request->user();
+
+        if ($added->isNotEmpty()) {
+            $this->notifications->notifyUsers(
+                $added,
+                $actor->id,
+                $projet->id,
+                'Assigné à une carte',
+                $actor->name.' vous a ajouté sur « '.$projet->titre.' ».',
+                'info'
+            );
+            $this->notifications->notifyMembres(
+                $projet,
+                $actor->id,
+                'Membres mis à jour',
+                $actor->name.' a ajouté des membres sur « '.$projet->titre.' ».',
+                'info',
+                $after->diff($added)->all()
+            );
+        }
+
+        if ($removed->isNotEmpty()) {
+            $this->notifications->notifyUsers(
+                $removed,
+                $actor->id,
+                $projet->id,
+                'Retiré d\'une carte',
+                $actor->name.' vous a retiré de « '.$projet->titre.' ».',
+                'warning'
+            );
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -311,6 +384,13 @@ class ProjetController extends Controller
         ]);
 
         $projet->etiquettes()->sync($data['etiquette_ids'] ?? []);
+
+        $this->notifications->log(
+            $projet,
+            $request->user(),
+            $request->user()->name.' a modifié les étiquettes de « '.$projet->titre.' »',
+            'Étiquettes mises à jour'
+        );
 
         return response()->json(['ok' => true]);
     }
@@ -340,6 +420,13 @@ class ProjetController extends Controller
             'titre' => $data['titre'] ?? 'Checklist',
             'position' => (int) $projet->checklists()->max('position') + 1,
         ]);
+
+        $this->notifications->log(
+            $projet,
+            $request->user(),
+            $request->user()->name.' a ajouté une checklist sur « '.$projet->titre.' »',
+            'Checklist ajoutée'
+        );
 
         return response()->json(['ok' => true, 'id' => $checklist->id, 'titre' => $checklist->titre]);
     }
@@ -382,6 +469,17 @@ class ProjetController extends Controller
             'user_id' => $request->user()->id,
             'contenu' => $data['contenu'],
         ]);
+
+        $extrait = mb_strlen($data['contenu']) > 80
+            ? mb_substr($data['contenu'], 0, 80).'…'
+            : $data['contenu'];
+
+        $this->notifications->log(
+            $projet,
+            $request->user(),
+            $request->user()->name.' a commenté sur « '.$projet->titre.' » : '.$extrait,
+            'Nouveau commentaire'
+        );
 
         return response()->json([
             'ok' => true,
@@ -428,7 +526,12 @@ class ProjetController extends Controller
             'uploaded_by' => $request->user()->id,
         ]);
 
-        $this->log($projet, $request->user()->id, $request->user()->name.' a ajouté une pièce jointe');
+        $this->notifications->log(
+            $projet,
+            $request->user(),
+            $request->user()->name.' a ajouté une pièce jointe sur « '.$projet->titre.' »',
+            'Pièce jointe ajoutée'
+        );
 
         return response()->json([
             'ok' => true,
@@ -448,14 +551,5 @@ class ProjetController extends Controller
         $piece->delete();
 
         return response()->json(['ok' => true]);
-    }
-
-    protected function log(ProjetCarte $carte, ?int $userId, string $message): void
-    {
-        ProjetActivite::create([
-            'projet_carte_id' => $carte->id,
-            'user_id' => $userId,
-            'message' => $message,
-        ]);
     }
 }

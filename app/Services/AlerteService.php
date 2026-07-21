@@ -7,14 +7,17 @@ use App\Models\BudgetAnnuel;
 use App\Models\Depense;
 use App\Models\Evenement;
 use App\Models\Stock;
+use App\Models\User;
+use App\Models\UserNotification;
 use Carbon\Carbon;
 
 class AlerteService
 {
-    public function all(?int $annee = null, ?int $mois = null): array
+    public function all(?int $annee = null, ?int $mois = null, ?User $user = null): array
     {
         $annee = $annee ?? now()->year;
         $mois = $mois ?? now()->month;
+        $user = $user ?? auth()->user();
 
         $snap = app(BudgetMensuelService::class)->forMonth($annee, $mois);
         $budgetMontant = $snap['budget_effectif'];
@@ -27,6 +30,17 @@ class AlerteService
         $alertes = [];
         $moisLabel = Carbon::create($annee, $mois, 1)->locale('fr')->isoFormat('MMMM YYYY');
 
+        if ($user) {
+            $perso = UserNotification::where('user_id', $user->id)
+                ->orderByDesc('created_at')
+                ->limit(30)
+                ->get();
+
+            foreach ($perso as $notification) {
+                $alertes[] = $notification->toAlerteArray();
+            }
+        }
+
         if ($snap['is_depassement']) {
             $pct = $snap['pct_utilise'];
             $alertes[] = [
@@ -35,6 +49,7 @@ class AlerteService
                 'description' => ucfirst($moisLabel).' : '.format_ar($totalDepense).' dépensés sur '.format_ar($budgetMontant).' effectifs ('.format_ar($snap['depassement']).' reportés au mois suivant, '.$pct.'%).',
                 'temps' => 'Maintenant',
                 'url' => route('depenses.index'),
+                'dismissible' => false,
             ];
         } elseif ($budgetMontant > 0 && $totalDepense >= $budgetMontant * 0.9) {
             $reste = max(0, $snap['reste']);
@@ -44,6 +59,7 @@ class AlerteService
                 'description' => 'Il reste '.format_ar($reste).' sur '.format_ar($budgetMontant).' en '.ucfirst($moisLabel).'.',
                 'temps' => 'Maintenant',
                 'url' => route('budgets.index'),
+                'dismissible' => false,
             ];
         } elseif ($budgetMontant <= 0) {
             $alertes[] = [
@@ -52,6 +68,7 @@ class AlerteService
                 'description' => 'Aucun budget défini pour '.ucfirst($moisLabel).'.',
                 'temps' => 'Maintenant',
                 'url' => route('budgets.create'),
+                'dismissible' => false,
             ];
         }
 
@@ -66,6 +83,7 @@ class AlerteService
                     'description' => format_ar($budgetAnnuelAlloue).' alloués en mensuel sur '.format_ar($budgetAnnuelMontant).' ('.$annee.').',
                     'temps' => 'Maintenant',
                     'url' => route('budget-annuels.index'),
+                    'dismissible' => false,
                 ];
             } elseif ($pctAlloue >= 90) {
                 $alertes[] = [
@@ -74,6 +92,7 @@ class AlerteService
                     'description' => 'Il reste '.format_ar($resteAnnuel).' à répartir sur '.$annee.' ('.round($pctAlloue).'% alloué).',
                     'temps' => 'Maintenant',
                     'url' => route('budget-annuels.index'),
+                    'dismissible' => false,
                 ];
             }
         }
@@ -90,6 +109,7 @@ class AlerteService
                 'description' => $stock->article.' : '.$stock->quantite.' restant(s) (seuil '.$stock->seuil_alerte.').',
                 'temps' => $stock->updated_at?->diffForHumans() ?? 'Récent',
                 'url' => route('stocks.index'),
+                'dismissible' => false,
             ];
         }
 
@@ -105,6 +125,7 @@ class AlerteService
                 'description' => $depense->objet.' — '.format_ar($depense->montant).' ('.$depense->fournisseur.').',
                 'temps' => $depense->created_at?->diffForHumans() ?? $depense->date_depense->format('d/m/Y'),
                 'url' => route('depenses.edit', $depense),
+                'dismissible' => false,
             ];
         }
 
@@ -123,14 +144,15 @@ class AlerteService
                     .($evenement->lieu ? ' · '.$evenement->lieu : ''),
                 'temps' => $evenement->date_debut->diffForHumans(),
                 'url' => route('evenements.edit', $evenement),
+                'dismissible' => false,
             ];
         }
 
         return $alertes;
     }
 
-    public function count(?int $annee = null, ?int $mois = null): int
+    public function count(?int $annee = null, ?int $mois = null, ?User $user = null): int
     {
-        return count($this->all($annee, $mois));
+        return count($this->all($annee, $mois, $user));
     }
 }

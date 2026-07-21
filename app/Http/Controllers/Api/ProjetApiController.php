@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProjetActivite;
 use App\Models\ProjetCarte;
 use App\Models\ProjetListe;
 use App\Models\ProjetTableau;
+use App\Services\ProjetNotificationService;
 use Illuminate\Http\Request;
 
 class ProjetApiController extends Controller
 {
+    public function __construct(private ProjetNotificationService $notifications)
+    {
+    }
     public function board()
     {
         $tableau = ProjetTableau::current();
@@ -74,11 +77,12 @@ class ProjetApiController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        ProjetActivite::create([
-            'projet_carte_id' => $carte->id,
-            'user_id' => $request->user()->id,
-            'message' => $request->user()->name.' a ajouté cette carte à '.$liste->nom,
-        ]);
+        $this->notifications->log(
+            $carte,
+            $request->user(),
+            $request->user()->name.' a ajouté cette carte à '.$liste->nom,
+            'Nouvelle carte'
+        );
 
         return response()->json(['ok' => true, 'id' => $carte->id], 201);
     }
@@ -98,11 +102,12 @@ class ProjetApiController extends Controller
 
         if (isset($data['projet_liste_id']) && (int) $data['projet_liste_id'] !== (int) $oldListeId) {
             $projet->load('liste');
-            ProjetActivite::create([
-                'projet_carte_id' => $projet->id,
-                'user_id' => $request->user()->id,
-                'message' => $request->user()->name.' a déplacé cette carte vers '.$projet->liste->nom,
-            ]);
+            $this->notifications->log(
+                $projet,
+                $request->user(),
+                $request->user()->name.' a déplacé « '.$projet->titre.' » vers '.$projet->liste->nom,
+                'Carte déplacée'
+            );
         }
 
         return response()->json(['ok' => true]);
@@ -129,11 +134,12 @@ class ProjetApiController extends Controller
         }
 
         if ((int) $oldListeId !== (int) $liste->id) {
-            ProjetActivite::create([
-                'projet_carte_id' => $carte->id,
-                'user_id' => $request->user()->id,
-                'message' => $request->user()->name.' a déplacé cette carte vers '.$liste->nom,
-            ]);
+            $this->notifications->log(
+                $carte,
+                $request->user(),
+                $request->user()->name.' a déplacé « '.$carte->titre.' » vers '.$liste->nom,
+                'Carte déplacée'
+            );
         }
 
         return response()->json(['ok' => true]);

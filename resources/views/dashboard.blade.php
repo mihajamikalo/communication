@@ -127,32 +127,48 @@
                 <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-[10px] font-bold text-white">{{ $nbAlertes }}</span>
             @endif
         </div>
-        <div class="divide-y divide-slate-100 max-h-[28rem] overflow-y-auto">
+        <div class="divide-y divide-slate-100 max-h-[28rem] overflow-y-auto" x-data>
             @forelse($alertes as $alerte)
-            <a href="{{ $alerte['url'] ?? '#' }}" class="px-5 py-4 flex gap-3 hover:bg-slate-50/80 transition-colors block">
-                <div class="flex-shrink-0 mt-0.5">
-                    @if($alerte['type'] === 'danger')
-                        <div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @elseif($alerte['type'] === 'warning')
-                        <div class="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @else
-                        <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @endif
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-start justify-between gap-2">
-                        <p class="text-sm font-semibold text-slate-900">{{ $alerte['titre'] }}</p>
-                        <span class="text-[11px] text-slate-400 whitespace-nowrap">{{ $alerte['temps'] }}</span>
+            <div class="px-5 py-4 flex gap-3 hover:bg-slate-50/80 transition-colors group" @if(!empty($alerte['id'])) data-notification-id="{{ $alerte['id'] }}" @endif>
+                <a href="{{ $alerte['url'] ?? '#' }}" class="flex gap-3 flex-1 min-w-0">
+                    <div class="flex-shrink-0 mt-0.5">
+                        @if($alerte['type'] === 'danger')
+                            <div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                            </div>
+                        @elseif($alerte['type'] === 'warning')
+                            <div class="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                            </div>
+                        @else
+                            <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                            </div>
+                        @endif
                     </div>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ $alerte['description'] }}</p>
-                </div>
-            </a>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-sm font-semibold text-slate-900">
+                                {{ $alerte['titre'] }}
+                                @if(!empty($alerte['perso']))
+                                    <span class="ml-1 inline-flex items-center rounded bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 align-middle">Perso</span>
+                                @endif
+                            </p>
+                            <span class="text-[11px] text-slate-400 whitespace-nowrap">{{ $alerte['temps'] }}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ $alerte['description'] }}</p>
+                    </div>
+                </a>
+                @if(!empty($alerte['dismissible']) && !empty($alerte['id']))
+                    <form method="POST" action="{{ route('notifications.destroy', $alerte['id']) }}" class="flex-shrink-0 self-center" onclick="event.stopPropagation()">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" title="Supprimer" class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </form>
+                @endif
+            </div>
             @empty
             <div class="px-5 py-8 text-center">
                 <div class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-50 mb-2">
