@@ -26,33 +26,50 @@ class ProjetEtiquette extends Model
         return $this->belongsToMany(ProjetCarte::class, 'projet_carte_etiquette');
     }
 
+    /**
+     * Labels kept by default (Eisenhower matrix + Terminé).
+     */
+    public const DEFAULTS = [
+        ['nom' => 'Urgent & Important', 'couleur' => 'red'],
+        ['nom' => 'Urgent mais pas important', 'couleur' => 'yellow'],
+        ['nom' => 'Ni important ni urgent', 'couleur' => 'purple'],
+        ['nom' => 'Terminé', 'couleur' => 'green'],
+    ];
+
+    /** Labels to remove from existing databases. */
+    public const REMOVED_NOMS = [
+        'Communication',
+        'Important',
+        'Partenariat',
+        'Pas urgent',
+        'À traiter',
+        'A traiter',
+        'Événement',
+        'Événements',
+        'Evenement',
+        'Evenements',
+    ];
+
     public function getClassesAttribute(): array
     {
         return self::COULEURS[$this->couleur] ?? self::COULEURS['yellow'];
     }
 
     /**
-     * Create default labels if the table is empty.
+     * Ensure default labels exist and remove deprecated ones.
      */
     public static function ensureDefaults(): void
     {
-        if (static::exists()) {
-            return;
-        }
+        static::whereIn('nom', self::REMOVED_NOMS)->each(function (self $etiquette) {
+            $etiquette->cartes()->detach();
+            $etiquette->delete();
+        });
 
-        foreach ([
-            ['nom' => 'Urgent & Important', 'couleur' => 'red'],
-            ['nom' => 'Urgent mais pas important', 'couleur' => 'yellow'],
-            ['nom' => 'Important', 'couleur' => 'blue'],
-            ['nom' => 'Pas urgent', 'couleur' => 'cyan'],
-            ['nom' => 'Ni important ni urgent', 'couleur' => 'purple'],
-            ['nom' => 'Communication', 'couleur' => 'green'],
-            ['nom' => 'À traiter', 'couleur' => 'yellow'],
-            ['nom' => 'Partenariat', 'couleur' => 'cyan'],
-            ['nom' => 'Événement', 'couleur' => 'purple'],
-            ['nom' => 'Terminé', 'couleur' => 'green'],
-        ] as $etiquette) {
-            static::create($etiquette);
+        foreach (self::DEFAULTS as $etiquette) {
+            static::firstOrCreate(
+                ['nom' => $etiquette['nom']],
+                ['couleur' => $etiquette['couleur']]
+            );
         }
     }
 

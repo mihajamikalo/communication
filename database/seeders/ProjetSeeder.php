@@ -61,13 +61,13 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Simulation signalétique',
                 'liste' => 'a_faire',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Ni important ni urgent'],
                 'date_fin' => '2026-06-16',
             ],
             [
                 'titre' => 'BDE ESCM',
                 'liste' => 'a_faire',
-                'etiquettes' => ['Communication'],
+                'etiquettes' => ['Ni important ni urgent'],
                 'date_fin' => '2026-06-28',
                 'membres' => ['MA', 'AD', 'SA'],
                 'commentaires' => 1,
@@ -75,7 +75,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Agent IA',
                 'liste' => 'a_faire',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Urgent mais pas important'],
                 'date_debut' => '2026-06-15',
                 'date_fin' => '2026-09-30',
                 'description' => "Exploration d'un agent IA pour la communication ESCM.",
@@ -90,7 +90,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Tour Eiffel ESCM',
                 'liste' => 'en_attente',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Ni important ni urgent'],
                 'membres' => ['MA', 'AD'],
                 'checklist' => ['Validation concept'],
             ],
@@ -108,7 +108,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Supports de communication',
                 'liste' => 'en_cours',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Urgent mais pas important'],
                 'description' => 'Flyers, kakémonos, posts réseaux, templates Canva.',
                 'membres' => ['MA', 'AD', 'SA'],
                 'checklist' => array_map(fn ($i) => "Élément $i", range(1, 19)),
@@ -130,7 +130,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'STTE',
                 'liste' => 'en_attente_validation',
-                'etiquettes' => ['À traiter', 'Communication', 'Partenariat'],
+                'etiquettes' => ['Urgent mais pas important'],
                 'membres' => ['AD'],
             ],
             [
@@ -143,7 +143,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Porte diplôme',
                 'liste' => 'bloque',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Ni important ni urgent'],
                 'date_debut' => '2025-10-01',
                 'date_fin' => '2026-06-30',
                 'description' => 'Conception et production des portes-diplômes.',
@@ -161,7 +161,7 @@ class ProjetSeeder extends Seeder
             [
                 'titre' => 'Budget Communication',
                 'liste' => 'termine',
-                'etiquettes' => ['À traiter'],
+                'etiquettes' => ['Terminé'],
                 'date_debut' => '2025-06-01',
                 'date_fin' => '2025-06-16',
                 'description' => 'Budget annuel communication validé.',
