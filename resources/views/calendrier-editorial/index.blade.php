@@ -19,6 +19,7 @@
         'statuts' => $statuts,
         'typesContenu' => $typesContenu,
         'canValidate' => $canValidate,
+        'maxVisuels' => $maxVisuels ?? 10,
         'baseUrl' => route('calendrier-editorial'),
         'storeUrl' => route('calendrier-editorial.store'),
         'today' => now()->toDateString(),
@@ -287,10 +288,10 @@
         x-show="selectedEvent"
         x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
-        @keydown.escape.window="if (!showCreate) selectedEvent = null"
+        @keydown.escape.window="if (lightbox.open) { closeLightbox(); return; } if (!showCreate && !showEdit) selectedEvent = null"
     >
         <div class="absolute inset-0 bg-black/40" @click="selectedEvent = null"></div>
-        <div class="relative bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-5" x-show="selectedEvent" x-transition>
+        <div class="relative bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg p-5" x-show="selectedEvent" x-transition>
             <template x-if="selectedEvent">
                 <div>
                     <div class="flex items-start justify-between gap-3 mb-3">
@@ -330,18 +331,24 @@
                             <dt class="text-slate-500 w-28 shrink-0">Texte publication LinkedIn</dt>
                             <dd class="text-slate-800 whitespace-pre-wrap" x-text="selectedEvent.texte_publication_linkedin"></dd>
                         </div>
-                        <div class="flex gap-2" x-show="selectedEvent.visuel_url">
+                        <div class="flex gap-2" x-show="(selectedEvent.visuels && selectedEvent.visuels.length) || selectedEvent.visuel_url">
                             <dt class="text-slate-500 w-28 shrink-0">Visuel</dt>
-                            <dd>
-                                <a :href="selectedEvent.visuel_url" target="_blank" class="block">
-                                    <img :src="selectedEvent.visuel_url" :alt="selectedEvent.visuel_nom || 'Visuel'" class="max-h-40 rounded-lg border border-slate-200 object-cover">
-                                </a>
-                                <p class="text-xs text-slate-500 mt-1" x-text="selectedEvent.visuel_nom"></p>
-                                <a :href="selectedEvent.visuel_url" :download="selectedEvent.visuel_nom || 'visuel'"
-                                   class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-escm-primary hover:underline">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                    Télécharger le visuel
-                                </a>
+                            <dd class="flex-1 min-w-0">
+                                <div
+                                    class="visuel-grid gap-1.5"
+                                    :class="visuelGridClass((selectedEvent.visuels && selectedEvent.visuels.length) ? selectedEvent.visuels.length : 1)"
+                                >
+                                    <template x-for="(v, idx) in (selectedEvent.visuels && selectedEvent.visuels.length ? selectedEvent.visuels : [{ url: selectedEvent.visuel_url, nom: selectedEvent.visuel_nom }])" :key="v.id || idx">
+                                        <button
+                                            type="button"
+                                            class="visuel-thumb group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 aspect-square focus:outline-none focus:ring-2 focus:ring-escm-primary/40"
+                                            @click="openLightbox(selectedEvent.visuels && selectedEvent.visuels.length ? selectedEvent.visuels : [{ url: selectedEvent.visuel_url, nom: selectedEvent.visuel_nom }], idx)"
+                                        >
+                                            <img :src="v.url" :alt="v.nom || 'Visuel'" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105">
+                                        </button>
+                                    </template>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-1.5">Cliquez une image pour l’agrandir</p>
                             </dd>
                         </div>
                     </dl>
@@ -495,10 +502,18 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Visuel</label>
-                    <input type="file" name="visuel" accept="image/jpeg,image/png,image/webp,image/gif"
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Visuels <span class="text-slate-400 font-normal">(max {{ $maxVisuels ?? 10 }})</span></label>
+                    <input type="file" name="visuels[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple
+                           @change="onCreateVisuelsChange($event)"
                            class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-escm-primary file:text-white hover:file:bg-escm-primary-dark">
-                    <p class="mt-1 text-xs text-slate-500">JPG, PNG, WEBP ou GIF — max 5 Mo</p>
+                    <p class="mt-1 text-xs text-slate-500">JPG, PNG, WEBP ou GIF — max 5 Mo chacun, jusqu’à {{ $maxVisuels ?? 10 }} images</p>
+                    <div x-show="createPreviews.length" x-cloak class="mt-2 visuel-grid gap-1.5" :class="visuelGridClass(createPreviews.length)">
+                        <template x-for="(p, idx) in createPreviews" :key="idx">
+                            <button type="button" class="visuel-thumb aspect-square overflow-hidden rounded-lg border border-slate-200" @click="openLightbox(createPreviews, idx)">
+                                <img :src="p.url" :alt="p.nom" class="h-full w-full object-cover">
+                            </button>
+                        </template>
+                    </div>
                 </div>
 
                 @if($canValidate)
@@ -648,20 +663,39 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Visuel</label>
-                    <div x-show="editingEvent && editingEvent.visuel_url && !editForm.remove_visuel" x-cloak class="mb-2">
-                        <img :src="editingEvent ? editingEvent.visuel_url : ''" class="max-h-32 rounded-lg border border-slate-200 object-cover">
-                        <div class="flex items-center gap-3 mt-1">
-                            <a :href="editingEvent ? editingEvent.visuel_url : ''" :download="editingEvent ? (editingEvent.visuel_nom || 'visuel') : ''" class="text-xs font-semibold text-escm-primary hover:underline">Télécharger</a>
-                            <label class="inline-flex items-center gap-1.5 text-xs text-red-600 cursor-pointer">
-                                <input type="checkbox" name="remove_visuel" value="1" x-model="editForm.remove_visuel" class="rounded border-slate-300 text-red-600 focus:ring-red-500">
-                                Supprimer le visuel
-                            </label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Visuels <span class="text-slate-400 font-normal">(max {{ $maxVisuels ?? 10 }})</span></label>
+                    <template x-for="id in editForm.remove_visuel_ids" :key="'rm'+id">
+                        <input type="hidden" name="remove_visuel_ids[]" :value="id">
+                    </template>
+                    <div x-show="editingEvent && existingEditVisuels.length" x-cloak class="mb-2">
+                        <div class="visuel-grid gap-1.5" :class="visuelGridClass(existingEditVisuels.length)">
+                            <template x-for="(v, idx) in existingEditVisuels" :key="v.id">
+                                <div class="relative group" :class="editForm.remove_visuel_ids.includes(v.id) && 'opacity-40'">
+                                    <button type="button" class="visuel-thumb block w-full aspect-square overflow-hidden rounded-lg border border-slate-200" @click="openLightbox(existingEditVisuels, idx)">
+                                        <img :src="v.url" :alt="v.nom || 'Visuel'" class="h-full w-full object-cover">
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="absolute top-1 right-1 rounded bg-white/95 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold shadow-sm"
+                                        :class="editForm.remove_visuel_ids.includes(v.id) ? 'text-emerald-700' : 'text-red-600'"
+                                        @click="toggleRemoveVisuel(v.id)"
+                                        x-text="editForm.remove_visuel_ids.includes(v.id) ? 'Annuler' : 'Suppr.'"
+                                    ></button>
+                                </div>
+                            </template>
                         </div>
                     </div>
-                    <input type="file" name="visuel" accept="image/jpeg,image/png,image/webp,image/gif"
+                    <input type="file" name="visuels[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple
+                           @change="onEditVisuelsChange($event)"
                            class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-escm-primary file:text-white hover:file:bg-escm-primary-dark">
-                    <p class="mt-1 text-xs text-slate-500" x-text="editingEvent && editingEvent.visuel_url ? 'Choisir un fichier pour remplacer le visuel actuel — JPG, PNG, WEBP ou GIF, max 5 Mo' : 'JPG, PNG, WEBP ou GIF — max 5 Mo'"></p>
+                    <p class="mt-1 text-xs text-slate-500" x-text="`Ajouter des images (reste ${Math.max(0, maxVisuels - keptEditVisuels.length)} place(s)) — JPG/PNG/WEBP/GIF, max 5 Mo chacune`"></p>
+                    <div x-show="editPreviews.length" x-cloak class="mt-2 visuel-grid gap-1.5" :class="visuelGridClass(editPreviews.length)">
+                        <template x-for="(p, idx) in editPreviews" :key="'new'+idx">
+                            <button type="button" class="visuel-thumb aspect-square overflow-hidden rounded-lg border border-dashed border-escm-primary/40" @click="openLightbox(editPreviews, idx)">
+                                <img :src="p.url" :alt="p.nom" class="h-full w-full object-cover">
+                            </button>
+                        </template>
+                    </div>
                 </div>
 
                 @if($canValidate)
@@ -683,10 +717,67 @@
             </form>
         </div>
     </div>
+
+    {{-- Lightbox visuels --}}
+    <div
+        x-show="lightbox.open"
+        x-cloak
+        class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+        @keydown.escape.window="if (lightbox.open) closeLightbox()"
+        @keydown.arrow-left.window="if (lightbox.open) lightboxPrev()"
+        @keydown.arrow-right.window="if (lightbox.open) lightboxNext()"
+    >
+        <div class="absolute inset-0 bg-black/70" @click="closeLightbox()"></div>
+        <div class="relative z-10 w-full max-w-4xl flex flex-col items-center">
+            <button type="button" @click="closeLightbox()" class="absolute -top-2 right-0 sm:-right-2 p-2 rounded-full bg-white/10 text-white hover:bg-white/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="relative w-full flex items-center justify-center min-h-[40vh]">
+                <button type="button" x-show="lightbox.items.length > 1" @click="lightboxPrev()" class="absolute left-0 sm:-left-4 z-10 p-2 rounded-full bg-white/15 text-white hover:bg-white/25">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <template x-for="item in (lightbox.items[lightbox.index] ? [lightbox.items[lightbox.index]] : [])" :key="lightbox.index + '-' + (item.url || '')">
+                    <img
+                        :src="item.url"
+                        :alt="item.nom || 'Visuel'"
+                        class="lightbox-img max-h-[78vh] max-w-full rounded-xl shadow-2xl object-contain bg-black/20"
+                    >
+                </template>
+                <button type="button" x-show="lightbox.items.length > 1" @click="lightboxNext()" class="absolute right-0 sm:-right-4 z-10 p-2 rounded-full bg-white/15 text-white hover:bg-white/25">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+            <div class="mt-3 flex items-center gap-3 text-white/90 text-sm">
+                <span x-text="lightbox.items[lightbox.index]?.nom || ''" class="truncate max-w-[16rem]"></span>
+                <span class="text-white/60" x-show="lightbox.items.length > 1" x-text="(lightbox.index + 1) + ' / ' + lightbox.items.length"></span>
+                <a
+                    x-show="lightbox.items[lightbox.index]"
+                    :href="lightbox.items[lightbox.index]?.url"
+                    :download="lightbox.items[lightbox.index]?.nom || 'visuel'"
+                    class="inline-flex items-center gap-1 font-semibold text-sky-300 hover:text-sky-200"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Télécharger
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
     [x-cloak] { display: none !important; }
+    .visuel-grid { display: grid; }
+    .visuel-grid.cols-1 { grid-template-columns: minmax(0, 10rem); }
+    .visuel-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .visuel-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .visuel-thumb { cursor: zoom-in; }
+    .lightbox-img {
+        animation: visuelZoomIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes visuelZoomIn {
+        from { opacity: 0; transform: scale(0.86); }
+        to { opacity: 1; transform: scale(1); }
+    }
 </style>
 @endsection
 
@@ -767,8 +858,12 @@ function editorialCalendar(config) {
             valide: false,
             texte_publication: '',
             texte_publication_linkedin: '',
-            remove_visuel: false,
+            remove_visuel_ids: [],
         },
+        maxVisuels: config.maxVisuels || 10,
+        createPreviews: [],
+        editPreviews: [],
+        lightbox: { open: false, items: [], index: 0 },
         miniMonth: parseDate(config.currentDate).getMonth(),
         miniYear: parseDate(config.currentDate).getFullYear(),
         visibleCategories: Object.fromEntries(config.categories.map(c => [c.key, true])),
@@ -796,6 +891,84 @@ function editorialCalendar(config) {
             return (this.editForm.categorie || []).includes('linkedin');
         },
 
+        get existingEditVisuels() {
+            if (!this.editingEvent) return [];
+            if (this.editingEvent.visuels && this.editingEvent.visuels.length) {
+                return this.editingEvent.visuels;
+            }
+            if (this.editingEvent.visuel_url) {
+                return [{ id: 'legacy', url: this.editingEvent.visuel_url, nom: this.editingEvent.visuel_nom }];
+            }
+            return [];
+        },
+
+        get keptEditVisuels() {
+            const removed = this.editForm.remove_visuel_ids || [];
+            return this.existingEditVisuels.filter(v => !removed.includes(v.id));
+        },
+
+        visuelGridClass(count) {
+            if (count <= 1) return 'cols-1';
+            if (count <= 4) return 'cols-2';
+            return 'cols-3';
+        },
+
+        openLightbox(items, index) {
+            this.lightbox = {
+                open: true,
+                items: (items || []).filter(Boolean),
+                index: Math.max(0, index || 0),
+            };
+        },
+
+        closeLightbox() {
+            this.lightbox.open = false;
+        },
+
+        lightboxPrev() {
+            if (!this.lightbox.items.length) return;
+            this.lightbox.index = (this.lightbox.index - 1 + this.lightbox.items.length) % this.lightbox.items.length;
+        },
+
+        lightboxNext() {
+            if (!this.lightbox.items.length) return;
+            this.lightbox.index = (this.lightbox.index + 1) % this.lightbox.items.length;
+        },
+
+        toggleRemoveVisuel(id) {
+            const list = this.editForm.remove_visuel_ids || [];
+            const idx = list.indexOf(id);
+            if (idx >= 0) list.splice(idx, 1);
+            else list.push(id);
+            this.editForm.remove_visuel_ids = [...list];
+        },
+
+        onCreateVisuelsChange(event) {
+            this.createPreviews = this.buildPreviews(event.target.files, this.maxVisuels);
+            if (event.target.files.length > this.maxVisuels) {
+                alert('Maximum ' + this.maxVisuels + ' images.');
+            }
+        },
+
+        onEditVisuelsChange(event) {
+            const remaining = Math.max(0, this.maxVisuels - this.keptEditVisuels.length);
+            this.editPreviews = this.buildPreviews(event.target.files, remaining);
+            if (event.target.files.length > remaining) {
+                alert('Il reste ' + remaining + ' place(s) (max ' + this.maxVisuels + ' images au total).');
+            }
+        },
+
+        buildPreviews(fileList, max) {
+            const files = Array.from(fileList || []).slice(0, max);
+            const maxBytes = 5 * 1024 * 1024;
+            return files.map((file) => {
+                if (file.size > maxBytes) {
+                    alert(file.name + ' dépasse 5 Mo et peut être refusé à l’envoi.');
+                }
+                return { url: URL.createObjectURL(file), nom: file.name };
+            });
+        },
+
         init() {
             if (config.openEdit && config.editEventId) {
                 const ev = this.events.find(e => String(e.id) === String(config.editEventId));
@@ -816,7 +989,7 @@ function editorialCalendar(config) {
                     valide: !!config.old.valide,
                     texte_publication: config.old.texte_publication || '',
                     texte_publication_linkedin: config.old.texte_publication_linkedin || '',
-                    remove_visuel: false,
+                    remove_visuel_ids: [],
                 };
                 this.showEdit = true;
             }
@@ -1002,8 +1175,9 @@ function editorialCalendar(config) {
                 valide: !!ev.valide,
                 texte_publication: ev.texte_publication || '',
                 texte_publication_linkedin: ev.texte_publication_linkedin || '',
-                remove_visuel: false,
+                remove_visuel_ids: [],
             };
+            this.editPreviews = [];
             this.selectedEvent = null;
             this.showCreate = false;
             this.showEdit = true;

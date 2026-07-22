@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 class EditorialEvent extends Model
 {
+    public const MAX_VISUELS = 10;
+
     protected $fillable = [
         'titre',
         'categorie',
@@ -33,7 +36,7 @@ class EditorialEvent extends Model
     public const CATEGORIES = [
         'facebook' => ['label' => 'Facebook', 'color_name' => 'Bleu', 'color' => '#1877F2', 'text' => '#ffffff'],
         'instagram' => ['label' => 'Instagram', 'color_name' => 'Rose', 'color' => '#E1306C', 'text' => '#ffffff'],
-        'linkedin' => ['label' => 'LinkedIn', 'color_name' => 'Bleu foncé', 'color' => '#0A66C2', 'text' => '#ffffff'],
+        'linkedin' => ['label' => 'LinkedIn', 'color_name' => 'Bleu foncé', 'color' => '#004182', 'text' => '#ffffff'],
         'tiktok' => ['label' => 'Tik Tok', 'color_name' => 'Noir', 'color' => '#111827', 'text' => '#ffffff'],
         'befiana_sms' => ['label' => 'Befiana SMS', 'color_name' => 'Vert', 'color' => '#16a34a', 'text' => '#ffffff'],
         'brevo' => ['label' => 'Brevo', 'color_name' => 'Violet', 'color' => '#7c3aed', 'text' => '#ffffff'],
@@ -44,6 +47,11 @@ class EditorialEvent extends Model
         'FI' => 'FI',
         'FP' => 'FP',
     ];
+
+    public function visuels(): HasMany
+    {
+        return $this->hasMany(EditorialEventVisuel::class)->orderBy('position')->orderBy('id');
+    }
 
     protected function categorie(): Attribute
     {
@@ -100,8 +108,17 @@ class EditorialEvent extends Model
         return in_array('facebook', $this->categorie ?? [], true) && $this->type_contenu === 'FI';
     }
 
+    /** @deprecated Prefer visuels relation; kept for legacy single-image fields. */
     public function getVisuelUrlAttribute(): ?string
     {
+        $first = $this->relationLoaded('visuels')
+            ? $this->visuels->first()
+            : $this->visuels()->first();
+
+        if ($first) {
+            return $first->url;
+        }
+
         if (! $this->visuel_path) {
             return null;
         }
@@ -112,6 +129,8 @@ class EditorialEvent extends Model
     protected static function booted(): void
     {
         static::deleting(function (EditorialEvent $event) {
+            $event->visuels()->each(fn (EditorialEventVisuel $v) => $v->delete());
+
             if ($event->visuel_path) {
                 Storage::disk('public')->delete($event->visuel_path);
             }

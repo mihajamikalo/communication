@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\EditorialEvent;
+use App\Models\EditorialEventVisuel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CalendrierEditorialController extends Controller
 {
@@ -20,6 +22,7 @@ class CalendrierEditorialController extends Controller
         [$rangeStart, $rangeEnd] = $this->resolveRange($date, $view);
 
         $events = EditorialEvent::query()
+            ->with('visuels')
             ->whereDate('date_debut', '<=', $rangeEnd)
             ->whereRaw('COALESCE(date_fin, date_debut) >= ?', [$rangeStart->toDateString()])
             ->orderBy('date_debut')
@@ -55,20 +58,20 @@ class CalendrierEditorialController extends Controller
             ],
             'typesContenu' => EditorialEvent::TYPES_CONTENU,
             'canValidate' => auth()->user()?->canValidateEditorial() ?? false,
+            'maxVisuels' => EditorialEvent::MAX_VISUELS,
         ]);
     }
 
     public function store(Request $request)
     {
         $validated = $this->validateEvent($request);
+        $files = $this->validatedVisuelFiles($request);
 
-        if ($request->hasFile('visuel')) {
-            $file = $request->file('visuel');
-            $validated['visuel_path'] = $file->store('editorial-visuels', 'public');
-            $validated['visuel_nom'] = $file->getClientOriginalName();
-        }
-
-        EditorialEvent::create($validated);
+        DB::transaction(function () use ($validated, $files) {
+            $event = EditorialEvent::create($validated);
+            $this->storeVisuelFiles($event, $files);
+            $this->syncLegacyVisuelColumns($event);
+        });
 
         return $this->redirectToCalendar($request)
             ->with('success', 'Contenu ajouté au calendrier.');
@@ -77,25 +80,32 @@ class CalendrierEditorialController extends Controller
     public function update(Request $request, EditorialEvent $editorialEvent)
     {
         $validated = $this->validateEvent($request);
+        $files = $this->validatedVisuelFiles($request);
+        $removeIds = array_values(array_filter(array_map('intval', (array) $request->input('remove_visuel_ids', []))));
 
-        if ($request->hasFile('visuel')) {
-            if ($editorialEvent->visuel_path) {
-                Storage::disk('public')->delete($editorialEvent->visuel_path);
+        DB::transaction(function () use ($editorialEvent, $validated, $files, $removeIds) {
+            $editorialEvent->load('visuels');
+
+            if ($removeIds) {
+                $editorialEvent->visuels()
+                    ->whereIn('id', $removeIds)
+                    ->get()
+                    ->each(fn (EditorialEventVisuel $v) => $v->delete());
+                $editorialEvent->unsetRelation('visuels');
+                $editorialEvent->load('visuels');
             }
 
-            $file = $request->file('visuel');
-            $validated['visuel_path'] = $file->store('editorial-visuels', 'public');
-            $validated['visuel_nom'] = $file->getClientOriginalName();
-        } elseif ($request->boolean('remove_visuel')) {
-            if ($editorialEvent->visuel_path) {
-                Storage::disk('public')->delete($editorialEvent->visuel_path);
+            $remaining = $editorialEvent->visuels->count();
+            if ($remaining + count($files) > EditorialEvent::MAX_VISUELS) {
+                throw ValidationException::withMessages([
+                    'visuels' => 'Maximum '.EditorialEvent::MAX_VISUELS.' images au total ('. $remaining.' déjà présentes).',
+                ]);
             }
 
-            $validated['visuel_path'] = null;
-            $validated['visuel_nom'] = null;
-        }
-
-        $editorialEvent->update($validated);
+            $editorialEvent->update($validated);
+            $this->storeVisuelFiles($editorialEvent, $files, $remaining);
+            $this->syncLegacyVisuelColumns($editorialEvent->fresh('visuels'));
+        });
 
         return $this->redirectToCalendar($request)
             ->with('success', 'Contenu mis à jour.');
@@ -130,7 +140,10 @@ class CalendrierEditorialController extends Controller
             'valide' => ['nullable', 'boolean'],
             'texte_publication' => ['required', 'string', 'max:5000'],
             'texte_publication_linkedin' => [$hasLinkedIn ? 'required' : 'nullable', 'string', 'max:5000'],
-            'visuel' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'visuels' => ['nullable', 'array', 'max:'.EditorialEvent::MAX_VISUELS],
+            'visuels.*' => ['file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+            'remove_visuel_ids' => ['nullable', 'array'],
+            'remove_visuel_ids.*' => ['integer'],
         ];
 
         if ($isFacebookFi && $request->boolean('booster')) {
@@ -144,11 +157,12 @@ class CalendrierEditorialController extends Controller
             'texte_publication_linkedin.required' => 'Le texte de publication LinkedIn est obligatoire.',
             'type_contenu.required' => 'Veuillez choisir FI ou FP.',
             'date_fin.required' => 'La date de fin est obligatoire lorsque Booster est activé.',
-            'visuel.mimes' => 'Le visuel doit être une image (jpg, png, webp, gif).',
-            'visuel.max' => 'Le visuel ne doit pas dépasser 5 Mo.',
+            'visuels.max' => 'Vous pouvez envoyer au maximum '.EditorialEvent::MAX_VISUELS.' images.',
+            'visuels.*.mimes' => 'Chaque visuel doit être une image (jpg, png, webp, gif).',
+            'visuels.*.max' => 'Chaque visuel ne doit pas dépasser 5 Mo.',
         ]);
 
-        unset($validated['visuel']);
+        unset($validated['visuels'], $validated['remove_visuel_ids']);
 
         $validated['categorie'] = array_values(array_unique($validated['categorie']));
         $validated['booster'] = $isFacebookFi && $request->boolean('booster');
@@ -171,6 +185,48 @@ class CalendrierEditorialController extends Controller
         return $validated;
     }
 
+    /**
+     * @return array<int, \Illuminate\Http\UploadedFile>
+     */
+    private function validatedVisuelFiles(Request $request): array
+    {
+        $files = $request->file('visuels', []);
+        if (! is_array($files)) {
+            $files = $files ? [$files] : [];
+        }
+
+        // Backward compatibility: single "visuel" field
+        if ($request->hasFile('visuel')) {
+            $files[] = $request->file('visuel');
+        }
+
+        return array_values(array_filter($files));
+    }
+
+    /**
+     * @param  array<int, \Illuminate\Http\UploadedFile>  $files
+     */
+    private function storeVisuelFiles(EditorialEvent $event, array $files, int $startPosition = 0): void
+    {
+        foreach ($files as $index => $file) {
+            $event->visuels()->create([
+                'path' => $file->store('editorial-visuels', 'public'),
+                'nom' => $file->getClientOriginalName(),
+                'position' => $startPosition + $index,
+            ]);
+        }
+    }
+
+    private function syncLegacyVisuelColumns(EditorialEvent $event): void
+    {
+        $first = $event->visuels()->orderBy('position')->orderBy('id')->first();
+
+        $event->forceFill([
+            'visuel_path' => $first?->path,
+            'visuel_nom' => $first?->nom,
+        ])->saveQuietly();
+    }
+
     private function redirectToCalendar(Request $request)
     {
         $date = $request->input('return_date', $request->input('date_debut', now()->toDateString()));
@@ -185,6 +241,7 @@ class CalendrierEditorialController extends Controller
     private function mapEvent(EditorialEvent $event): array
     {
         $meta = $event->categorie_meta;
+        $visuels = $event->visuels->map->toArrayPayload()->values()->all();
 
         return [
             'id' => $event->id,
@@ -202,8 +259,9 @@ class CalendrierEditorialController extends Controller
             'valide' => (bool) $event->valide,
             'texte_publication' => $event->texte_publication,
             'texte_publication_linkedin' => $event->texte_publication_linkedin,
-            'visuel_url' => $event->visuel_url,
-            'visuel_nom' => $event->visuel_nom,
+            'visuels' => $visuels,
+            'visuel_url' => $visuels[0]['url'] ?? $event->visuel_url,
+            'visuel_nom' => $visuels[0]['nom'] ?? $event->visuel_nom,
             'update_url' => route('calendrier-editorial.update', $event),
             'delete_url' => route('calendrier-editorial.destroy', $event),
         ];
