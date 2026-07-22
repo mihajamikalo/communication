@@ -40,6 +40,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('gestion-projet')->name('gestion-projet.')->group(function () {
         Route::get('/', [ProjetController::class, 'index'])->name('index');
         Route::post('/listes', [ProjetController::class, 'storeListe'])->name('listes.store');
+        Route::post('/listes/reorder', [ProjetController::class, 'reorderListes'])->name('listes.reorder');
         Route::patch('/listes/{liste}', [ProjetController::class, 'updateListe'])->name('listes.update');
         Route::delete('/listes/{liste}', [ProjetController::class, 'destroyListe'])->name('listes.destroy');
         Route::post('/background', [ProjetController::class, 'updateBackground'])->name('background');

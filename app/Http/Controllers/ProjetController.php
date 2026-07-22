@@ -70,6 +70,20 @@ class ProjetController extends Controller
         return back()->with('success', 'Liste ajoutée.');
     }
 
+    public function reorderListes(Request $request)
+    {
+        $data = $request->validate([
+            'ordered_ids' => ['required', 'array'],
+            'ordered_ids.*' => ['integer', 'exists:projet_listes,id'],
+        ]);
+
+        foreach ($data['ordered_ids'] as $index => $id) {
+            ProjetListe::where('id', $id)->update(['position' => $index]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     public function updateListe(Request $request, ProjetListe $liste)
     {
         $data = $request->validate([

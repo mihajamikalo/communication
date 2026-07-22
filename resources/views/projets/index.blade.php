@@ -52,13 +52,14 @@
     {{-- Board --}}
     <div class="overflow-x-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div class="flex gap-4 min-w-max items-start">
+            <div class="sortable-board flex gap-4 items-start">
             @foreach($listes as $liste)
-                <div class="w-72 flex-shrink-0 flex flex-col max-h-[calc(100vh-12rem)] bg-slate-200/85 backdrop-blur-sm rounded-xl shadow-sm">
-                    <div class="px-3 py-3 flex items-center justify-between gap-2">
-                        <h3 class="text-sm font-semibold text-slate-800 truncate">{{ $liste->nom }}</h3>
+                <div class="sortable-liste w-72 flex-shrink-0 flex flex-col max-h-[calc(100vh-12rem)] bg-slate-200/85 backdrop-blur-sm rounded-xl shadow-sm" data-liste-id="{{ $liste->id }}">
+                    <div class="liste-handle cursor-grab active:cursor-grabbing px-3 py-3 flex items-center justify-between gap-2 select-none">
+                        <h3 class="text-sm font-semibold text-slate-800 truncate pointer-events-none">{{ $liste->nom }}</h3>
                         <div class="flex items-center gap-1 shrink-0">
-                            <span class="text-xs font-medium text-slate-500 bg-slate-300/60 rounded-full px-2 py-0.5">{{ $liste->cartes->count() }}</span>
-                            <div class="relative" x-data="{ open: false }">
+                            <span class="text-xs font-medium text-slate-500 bg-slate-300/60 rounded-full px-2 py-0.5 pointer-events-none">{{ $liste->cartes->count() }}</span>
+                            <div class="relative" x-data="{ open: false }" @mousedown.stop @touchstart.stop>
                                 <button type="button" @click="open = !open" class="p-1 rounded text-slate-500 hover:bg-slate-300/50">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
                                 </button>
@@ -163,6 +164,7 @@
                     </div>
                 </div>
             @endforeach
+            </div>
 
             {{-- Add list --}}
             <div class="w-72 flex-shrink-0" x-data="{ adding: false }">
@@ -439,6 +441,7 @@ function projetBoard() {
     const routes = {
         store: @json(route('gestion-projet.cartes.store')),
         storeListe: @json(route('gestion-projet.listes.store')),
+        reorderListes: @json(route('gestion-projet.listes.reorder')),
         updateListe: (id) => @json(url('/gestion-projet/listes')).replace(/\/$/, '') + '/' + id,
         destroyListe: (id) => @json(url('/gestion-projet/listes')).replace(/\/$/, '') + '/' + id,
         show: (id) => @json(url('/gestion-projet/cartes')).replace(/\/$/, '') + '/' + id,
@@ -469,6 +472,18 @@ function projetBoard() {
         availableLabels: @json($etiquettes->map->toBoardArray()->values()),
 
         init() {
+            const board = document.querySelector('.sortable-board');
+            if (board) {
+                Sortable.create(board, {
+                    animation: 150,
+                    handle: '.liste-handle',
+                    draggable: '.sortable-liste',
+                    direction: 'horizontal',
+                    ghostClass: 'opacity-40',
+                    onEnd: (evt) => this.onMoveListe(evt),
+                });
+            }
+
             document.querySelectorAll('.sortable-list').forEach((el) => {
                 Sortable.create(el, {
                     group: 'projet-kanban',
@@ -544,6 +559,16 @@ function projetBoard() {
             await this.request(routes.move, {
                 method: 'POST',
                 json: { carte_id: carteId, projet_liste_id: listeId, ordered_ids: orderedIds },
+            });
+        },
+
+        async onMoveListe(evt) {
+            if (evt.oldIndex === evt.newIndex) return;
+            const board = evt.to;
+            const orderedIds = [...board.querySelectorAll('.sortable-liste')].map((el) => parseInt(el.dataset.listeId, 10));
+            await this.request(routes.reorderListes, {
+                method: 'POST',
+                json: { ordered_ids: orderedIds },
             });
         },
 
