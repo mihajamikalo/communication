@@ -397,8 +397,43 @@
                         <div class="lg:col-span-2 p-5 bg-slate-50/80 space-y-4">
                             <h4 class="text-sm font-semibold text-slate-900">Commentaires et activité</h4>
 
-                            <form @submit.prevent="addComment()" class="space-y-2">
-                                <textarea x-model="newComment" rows="3" placeholder="Écrivez un commentaire…" class="w-full rounded-lg border-slate-200 text-sm focus:border-escm-primary focus:ring-escm-primary" required></textarea>
+                            <form @submit.prevent="addComment()" class="space-y-2 relative">
+                                <div class="relative">
+                                    <textarea
+                                        x-ref="commentInput"
+                                        x-model="newComment"
+                                        @input="onCommentInput($event)"
+                                        @keydown="onCommentKeydown($event)"
+                                        rows="3"
+                                        placeholder="Écrivez un commentaire… Utilisez @ pour mentionner"
+                                        class="w-full rounded-lg border-slate-200 text-sm focus:border-escm-primary focus:ring-escm-primary"
+                                        required
+                                    ></textarea>
+                                    <div
+                                        x-show="mentionOpen && mentionSuggestions.length"
+                                        x-cloak
+                                        class="absolute left-0 right-0 bottom-full mb-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg z-30 py-1"
+                                    >
+                                        <template x-for="(u, idx) in mentionSuggestions" :key="u.id">
+                                            <button
+                                                type="button"
+                                                class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                                                :class="idx === mentionIndex && 'bg-slate-100'"
+                                                @mousedown.prevent="selectMention(u)"
+                                            >
+                                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-escm-primary text-[10px] font-bold text-white overflow-hidden shrink-0">
+                                                    <template x-if="u.avatar_url"><img :src="u.avatar_url" :alt="u.name" class="h-full w-full object-cover"></template>
+                                                    <span x-show="!u.avatar_url" x-text="u.initials"></span>
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="font-medium text-slate-800 block truncate" x-text="u.name"></span>
+                                                    <span class="text-[11px] text-slate-500" x-text="'@' + u.username"></span>
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                <p class="text-[11px] text-slate-400">Astuce : tapez <span class="font-semibold text-slate-600">@</span> puis le nom d’utilisateur pour mentionner quelqu’un.</p>
                                 <button type="submit" class="rounded-lg bg-escm-primary text-white text-xs font-semibold px-4 py-2">Envoyer</button>
                             </form>
 
@@ -411,7 +446,7 @@
                                         </span>
                                         <div class="min-w-0">
                                             <p class="text-xs text-slate-500"><span class="font-semibold text-slate-800" x-text="c.user"></span> · <span x-text="c.date"></span></p>
-                                            <div class="mt-1 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap" x-text="c.contenu"></div>
+                                            <div class="mt-1 rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap" x-html="formatCommentHtml(c.contenu)"></div>
                                         </div>
                                     </div>
                                 </template>
@@ -470,6 +505,22 @@ function projetBoard() {
         newComment: '',
         attachUrl: '',
         availableLabels: @json($etiquettes->map->toBoardArray()->values()),
+        mentionUsers: @json($mentionUsers ?? []),
+        mentionOpen: false,
+        mentionQuery: '',
+        mentionIndex: 0,
+        mentionStart: -1,
+
+        get mentionSuggestions() {
+            const q = (this.mentionQuery || '').toLowerCase();
+            return this.mentionUsers
+                .filter((u) => {
+                    if (!q) return true;
+                    return u.username.toLowerCase().includes(q)
+                        || u.name.toLowerCase().includes(q);
+                })
+                .slice(0, 6);
+        },
 
         init() {
             const board = document.querySelector('.sortable-board');
@@ -579,6 +630,8 @@ function projetBoard() {
             this.showLabels = false;
             this.showAttach = false;
             this.newComment = '';
+            this.mentionOpen = false;
+            this.mentionQuery = '';
             try {
                 this.card = await this.request(routes.show(id));
             } catch (e) {
@@ -666,12 +719,79 @@ function projetBoard() {
 
         async addComment() {
             if (!this.newComment.trim()) return;
+            this.mentionOpen = false;
             const res = await this.request(routes.commentaires(this.card.id), {
                 method: 'POST',
                 json: { contenu: this.newComment },
             });
             this.card.commentaires.unshift(res.commentaire);
             this.newComment = '';
+        },
+
+        onCommentInput(event) {
+            const el = event.target;
+            const value = el.value;
+            const pos = el.selectionStart ?? value.length;
+            const before = value.slice(0, pos);
+            const match = before.match(/@([a-zA-Z0-9._-]*)$/);
+            if (match) {
+                this.mentionOpen = true;
+                this.mentionQuery = match[1] || '';
+                this.mentionStart = pos - match[0].length;
+                this.mentionIndex = 0;
+            } else {
+                this.mentionOpen = false;
+                this.mentionQuery = '';
+                this.mentionStart = -1;
+            }
+        },
+
+        onCommentKeydown(event) {
+            if (!this.mentionOpen || !this.mentionSuggestions.length) return;
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.mentionIndex = (this.mentionIndex + 1) % this.mentionSuggestions.length;
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this.mentionIndex = (this.mentionIndex - 1 + this.mentionSuggestions.length) % this.mentionSuggestions.length;
+            } else if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                this.selectMention(this.mentionSuggestions[this.mentionIndex]);
+            } else if (event.key === 'Escape') {
+                this.mentionOpen = false;
+            }
+        },
+
+        selectMention(user) {
+            if (!user) return;
+            const el = this.$refs.commentInput;
+            const value = this.newComment;
+            const pos = el?.selectionStart ?? value.length;
+            const start = this.mentionStart >= 0 ? this.mentionStart : pos;
+            const before = value.slice(0, start);
+            const after = value.slice(pos);
+            const insertion = '@' + user.username + ' ';
+            this.newComment = before + insertion + after;
+            this.mentionOpen = false;
+            this.mentionQuery = '';
+            this.mentionStart = -1;
+            this.$nextTick(() => {
+                if (!el) return;
+                const cursor = before.length + insertion.length;
+                el.focus();
+                el.setSelectionRange(cursor, cursor);
+            });
+        },
+
+        formatCommentHtml(text) {
+            const escaped = String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            return escaped.replace(
+                /@([a-zA-Z0-9._-]+)/g,
+                '<span class="font-semibold text-escm-primary">@$1</span>'
+            );
         },
 
         async uploadFile(event) {

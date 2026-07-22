@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActiviteController;
 use App\Http\Controllers\BudgetAnnuelController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CalendrierEditorialController;
@@ -24,6 +25,9 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::get('/activite', [ActiviteController::class, 'index'])
+        ->middleware('role:super_admin')
+        ->name('activite.index');
 
     Route::resource('budget-annuels', BudgetAnnuelController::class)->except(['show']);
     Route::resource('budgets', BudgetController::class)->except(['show']);

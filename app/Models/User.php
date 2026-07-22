@@ -76,6 +76,48 @@ class User extends Authenticatable
         return $initials !== '' ? $initials : '?';
     }
 
+    /**
+     * Handle used for @mentions (part before @ in email, lowercased).
+     */
+    public function getUsernameAttribute(): string
+    {
+        $local = strstr((string) $this->email, '@', true);
+
+        return strtolower($local !== false ? $local : preg_replace('/\s+/', '', $this->name) ?? 'user');
+    }
+
+    public function toMentionArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'username' => $this->username,
+            'avatar_url' => $this->avatar_url,
+            'initials' => $this->initials(),
+        ];
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function findByMentionHandles(array $handles)
+    {
+        $handles = collect($handles)
+            ->map(fn ($h) => strtolower(ltrim((string) $h, '@')))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($handles->isEmpty()) {
+            return collect();
+        }
+
+        return static::query()
+            ->get(['id', 'name', 'email', 'avatar_path'])
+            ->filter(fn (self $user) => $handles->contains($user->username))
+            ->values();
+    }
+
     public function getAvatarUrlAttribute(): ?string
     {
         if (! $this->avatar_path) {

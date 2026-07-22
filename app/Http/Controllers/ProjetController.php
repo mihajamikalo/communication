@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProjetActivite;
 use App\Models\ProjetCarte;
 use App\Models\ProjetChecklist;
 use App\Models\ProjetChecklistItem;
@@ -39,6 +40,7 @@ class ProjetController extends Controller
         $listes = $tableau->listes;
         $etiquettes = ProjetEtiquette::orderBy('nom')->get();
         $users = User::orderBy('name')->get(['id', 'name', 'email', 'avatar_path']);
+        $mentionUsers = $users->map->toMentionArray()->values();
 
         return view('projets.index', [
             'title' => 'Gestion de projet',
@@ -47,6 +49,7 @@ class ProjetController extends Controller
             'listes' => $listes,
             'etiquettes' => $etiquettes,
             'users' => $users,
+            'mentionUsers' => $mentionUsers,
         ]);
     }
 
@@ -488,21 +491,57 @@ class ProjetController extends Controller
             ? mb_substr($data['contenu'], 0, 80).'…'
             : $data['contenu'];
 
-        $this->notifications->log(
-            $projet,
-            $request->user(),
-            $request->user()->name.' a commenté sur « '.$projet->titre.' » : '.$extrait,
-            'Nouveau commentaire'
-        );
+        $actor = $request->user();
+        $message = $actor->name.' a commenté sur « '.$projet->titre.' » : '.$extrait;
+
+        ProjetActivite::create([
+            'projet_carte_id' => $projet->id,
+            'user_id' => $actor->id,
+            'message' => $message,
+        ]);
+
+        preg_match_all('/@([a-zA-Z0-9._-]+)/u', $data['contenu'], $matches);
+        $mentioned = User::findByMentionHandles($matches[1] ?? []);
+        $mentionedIds = $mentioned->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if ($mentionedIds) {
+            $this->notifications->notifyUsers(
+                $mentionedIds,
+                $actor->id,
+                $projet->id,
+                'Vous avez été mentionné',
+                $actor->name.' vous a mentionné sur « '.$projet->titre.' » : '.$extrait,
+                'info'
+            );
+        }
+
+        $projet->loadMissing('membres');
+        $otherMemberIds = $projet->membres
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $id === (int) $actor->id || in_array($id, $mentionedIds, true))
+            ->values()
+            ->all();
+
+        if ($otherMemberIds) {
+            $this->notifications->notifyUsers(
+                $otherMemberIds,
+                $actor->id,
+                $projet->id,
+                'Nouveau commentaire',
+                $message,
+                'info'
+            );
+        }
 
         return response()->json([
             'ok' => true,
             'commentaire' => [
                 'id' => $commentaire->id,
                 'contenu' => $commentaire->contenu,
-                'user' => $request->user()->name,
-                'initials' => $request->user()->initials(),
-                'avatar_url' => $request->user()->avatar_url,
+                'user' => $actor->name,
+                'initials' => $actor->initials(),
+                'avatar_url' => $actor->avatar_url,
                 'date' => $commentaire->created_at->locale('fr')->isoFormat('D MMM YYYY, HH:mm'),
             ],
         ]);
